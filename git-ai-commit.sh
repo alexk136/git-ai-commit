@@ -84,15 +84,32 @@ fi
 
 # --- Generate commit message ---
 # Simplify the diff for JSON safety
-simple_diff=$(echo "$diff_output" | head -5 | tr -cd '[:alnum:][:space:]._-' | tr '\n' ' ')
+simple_diff=$(echo "$diff_output" | head -3 | tr -cd '[:alnum:][:space:]._-' | tr '\n' ' ')
 
+# Try to get a commit message from the model with a very direct prompt
 response=$(curl -s "$OLLAMA_URL/api/generate" \
   -H "Content-Type: application/json" \
-  -d "{\"model\": \"$MODEL\", \"prompt\": \"Write a short conventional commit message (max 60 chars) in $LANG language for: $simple_diff\", \"stream\": false}")
+  -d "{\"model\": \"$MODEL\", \"prompt\": \"$simple_diff\n\nCommit message:\", \"stream\": false}")
 
 # --- Parse response ---
 commit_message=$(echo "$response" | grep -o '"response":"[^"]*"' | sed 's/"response":"//;s/"$//' | tr -d '\n')
-commit_message=$(echo "$commit_message" | xargs) # remove extra spaces
+
+# Clean up the message - extract just the commit part
+commit_message=$(echo "$commit_message" | \
+    sed 's/.*[Cc]ommit[[:space:]]*[Mm]essage[[:space:]]*:[[:space:]]*//' | \
+    sed 's/^[[:space:]]*//' | \
+    sed 's/[[:space:]]*$//' | \
+    head -n 1)
+
+# If still empty, try a different approach
+if [ -z "$commit_message" ]; then
+    response=$(curl -s "$OLLAMA_URL/api/generate" \
+      -H "Content-Type: application/json" \
+      -d "{\"model\": \"$MODEL\", \"prompt\": \"Create one line commit message for these changes: $simple_diff\", \"stream\": false}")
+    
+    commit_message=$(echo "$response" | grep -o '"response":"[^"]*"' | sed 's/"response":"//;s/"$//' | tr -d '\n')
+    commit_message=$(echo "$commit_message" | head -n 1 | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
+fi
 
 if [ -z "$commit_message" ]; then
     echo "❌ Failed to get commit message from model"
