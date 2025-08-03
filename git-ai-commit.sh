@@ -126,18 +126,7 @@ if [ "$TAG_ONLY" = true ]; then
     exit 0
 fi
 
-# --- Проверка Ollama ---
-if ! curl -s --connect-timeout 1 "$OLLAMA_URL" > /dev/null; then
-    echo "❌ Ollama server is not running at $OLLAMA_URL"
-    exit 0
-fi
-
-if ! curl -s "$OLLAMA_URL/api/tags" | grep -q "\"name\":\"$MODEL\""; then
-    echo "❌ Model $MODEL is not loaded in Ollama"
-    exit 0
-fi
-
- # --- Ollama check ---
+# --- Ollama check ---
 if ! curl -s --connect-timeout 1 "$OLLAMA_URL" > /dev/null; then
     echo "❌ Ollama server is not running at $OLLAMA_URL"
     exit 0
@@ -190,7 +179,7 @@ response_body=$(echo "$response" | sed 's/HTTP_STATUS:[0-9]*$//')
 echo "🌐 HTTP Status: $http_status"
 
 if [ "$http_status" != "200" ]; then
-    echo "❌ Ошибка от Ollama (HTTP $http_status):"
+    echo "❌ Error from Ollama (HTTP $http_status):"
     echo "$response_body"
     exit 1
 fi
