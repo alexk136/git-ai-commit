@@ -162,15 +162,33 @@ if [ -z "$diff_output" ]; then
 fi
 
 # --- Generate commit message ---
-# Simplify the diff for JSON safety
-simple_diff=$(echo "$diff_output" | head -3 | tr -cd '[:alnum:][:space:]._-' | tr '\n' ' ')
+# Get a more meaningful summary of changes
+files_changed=$(echo "$diff_output" | grep "^diff --git" | wc -l)
+if [ "$files_changed" -eq 0 ]; then
+    files_changed=$(echo "$diff_output" | grep "^New file:" | wc -l)
+fi
+
+# Extract file names and change types
+file_summary=$(echo "$diff_output" | grep -E "^(diff --git|New file:|\+\+\+|---)" | head -10 | tr '\n' ' ')
+# Get some actual code changes for context
+code_changes=$(echo "$diff_output" | grep -E "^[+-]" | grep -v "^[+-][+-][+-]" | head -5 | tr '\n' ' ')
+
+# Create a better prompt with more context
+if [ "$LANG" = "russian" ]; then
+    prompt="Напиши краткое сообщение git commit (максимум 50 символов) на русском языке для этих изменений: Файлов изменено: $files_changed Файлы: $file_summary Изменения: $code_changes Сообщение коммита:"
+else
+    prompt="Write a concise git commit message (max 50 chars) in English for these changes: Files changed: $files_changed Files: $file_summary Changes: $code_changes Commit message:"
+fi
 
 echo "🔍 Sending request to model $MODEL..."
 
-# Try to get a commit message from the model with a very direct prompt
+# Clean the prompt for JSON safety
+clean_prompt=$(echo "$prompt" | tr '\n' ' ' | sed 's/"/\\"/g')
+
+# Try to get a commit message from the model with better context
 response=$(curl -s -w "HTTP_STATUS:%{http_code}" "$OLLAMA_URL/api/generate" \
   -H "Content-Type: application/json" \
-  -d "{\"model\": \"$MODEL\", \"prompt\": \"Write a concise git commit message (max 100 chars) for this diff: $simple_diff\n\nCommit message:\", \"stream\": false}")
+  -d "{\"model\": \"$MODEL\", \"prompt\": \"$clean_prompt\", \"stream\": false}")
 
 # Extract HTTP status and response body
 http_status=$(echo "$response" | grep -o "HTTP_STATUS:[0-9]*" | cut -d: -f2)
@@ -200,9 +218,19 @@ commit_message=$(echo "$commit_message" | sed 's/^[[:space:]]*//; s/[[:space:]]*
 # If still empty, try a different approach
 if [ -z "$commit_message" ]; then
     echo "🔄 Trying alternative prompt..."
+    
+    # Fallback with simpler prompt
+    simple_diff=$(echo "$diff_output" | head -3 | tr -cd '[:alnum:][:space:]._-' | tr '\n' ' ')
+    
+    if [ "$LANG" = "russian" ]; then
+        fallback_prompt="Краткое сообщение коммита (до 40 символов) для: $simple_diff"
+    else
+        fallback_prompt="Short commit message (under 40 chars) for: $simple_diff"
+    fi
+    
     response=$(curl -s -w "HTTP_STATUS:%{http_code}" "$OLLAMA_URL/api/generate" \
       -H "Content-Type: application/json" \
-      -d "{\"model\": \"$MODEL\", \"prompt\": \"Generate a short git commit message (under 50 characters) for: $simple_diff\", \"stream\": false}")
+      -d "{\"model\": \"$MODEL\", \"prompt\": \"$fallback_prompt\", \"stream\": false}")
     
     http_status=$(echo "$response" | grep -o "HTTP_STATUS:[0-9]*" | cut -d: -f2)
     response_body=$(echo "$response" | sed 's/HTTP_STATUS:[0-9]*$//')
