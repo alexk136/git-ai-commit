@@ -216,9 +216,9 @@ code_changes=$(echo "$diff_output" | grep -E "^[+-]" | grep -v "^[+-][+-][+-]" |
 
 # Create a better prompt with more context
 if [ "$LANG" = "russian" ]; then
-    prompt="Напиши краткое сообщение git commit (максимум 50 символов) на русском языке для этих изменений: Файлов изменено: $files_changed Файлы: $file_summary Изменения: $code_changes Сообщение коммита:"
+    prompt="Сгенерируй только сообщение коммита (максимум 50 символов) на русском языке для изменений в файлах: $file_summary. Ответь только сообщением без дополнительного текста."
 else
-    prompt="Write a concise git commit message (max 50 chars) in English for these changes: Files changed: $files_changed Files: $file_summary Changes: $code_changes Commit message:"
+    prompt="Generate only a commit message (max 50 chars) in English for file changes: $file_summary. Reply with only the message, no extra text."
 fi
 
 echo "🔍 Sending request to model $MODEL..."
@@ -245,7 +245,10 @@ fi
 
 # --- Parse response ---
 # Extract the response content, handling escaped quotes
-commit_message=$(echo "$response_body" | sed 's/.*"response":"\([^"]*\)".*/\1/' | sed 's/\\"/"/g')
+commit_message=$(echo "$response_body" | sed 's/.*"response":"\([^"]*\)".*/\1/' | sed 's/\\"/"/g' | sed 's/\\n/ /g')
+
+# Clean up common AI response patterns
+commit_message=$(echo "$commit_message" | sed 's/^[Hh]ere is a[^:]*: *//i' | sed 's/^[Cc]ommit message: *//i' | sed 's/^[Ss]ообщение коммита: *//i')
 
 # If that extracted just a backslash, try a different approach  
 if [ "$commit_message" = "\\" ] || [ -z "$commit_message" ]; then
@@ -253,8 +256,13 @@ if [ "$commit_message" = "\\" ] || [ -z "$commit_message" ]; then
     commit_message=$(echo "$response_body" | sed 's/.*"response":"\\*"\([^"]*\)\\*"".*/\1/')
 fi
 
-# Clean up and trim
-commit_message=$(echo "$commit_message" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//; s/\\$//; s/"$//' | head -n 1)
+# Clean up and trim - remove newlines, extra spaces, quotes
+commit_message=$(echo "$commit_message" | tr '\n' ' ' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//; s/\\$//; s/"$//; s/^"//; s/  */ /g' | head -n 1)
+
+# Truncate if too long
+if [ ${#commit_message} -gt 72 ]; then
+    commit_message=$(echo "$commit_message" | cut -c1-69)...
+fi
 
 # If still empty, try a different approach
 if [ -z "$commit_message" ]; then
@@ -264,9 +272,9 @@ if [ -z "$commit_message" ]; then
     simple_diff=$(echo "$diff_output" | head -3 | tr -cd '[:alnum:][:space:]._-' | tr '\n' ' ')
     
     if [ "$LANG" = "russian" ]; then
-        fallback_prompt="Краткое сообщение коммита (до 40 символов) для: $simple_diff"
+        fallback_prompt="Только сообщение коммита (до 40 символов): $simple_diff"
     else
-        fallback_prompt="Short commit message (under 40 chars) for: $simple_diff"
+        fallback_prompt="Only commit message (under 40 chars): $simple_diff"
     fi
     
     response=$(curl -s -w "HTTP_STATUS:%{http_code}" "$OLLAMA_URL/api/generate" \
@@ -282,8 +290,8 @@ if [ -z "$commit_message" ]; then
         exit 1
     fi
     
-    commit_message=$(echo "$response_body" | grep -o '"response":"[^"]*"' | sed 's/"response":"//;s/"$//' | tr -d '\n')
-    commit_message=$(echo "$commit_message" | head -n 1 | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
+    commit_message=$(echo "$response_body" | grep -o '"response":"[^"]*"' | sed 's/"response":"//;s/"$//' | tr -d '\n' | sed 's/\\n/ /g')
+    commit_message=$(echo "$commit_message" | sed 's/^[Hh]ere is a[^:]*: *//i' | sed 's/^[Cc]ommit message: *//i' | head -n 1 | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
 fi
 
 if [ -z "$commit_message" ]; then
