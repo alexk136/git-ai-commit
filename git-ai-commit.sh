@@ -147,8 +147,49 @@ if [ -z "$diff_output" ]; then
         # Check for unstaged changes
         unstaged_changes=$(git diff)
         if [ -z "$unstaged_changes" ]; then
-            echo "No changes to commit"
-            exit 0
+            # Check for unpushed commits
+            unpushed_commits=$(git log origin/$(git branch --show-current)..HEAD --oneline 2>/dev/null || echo "")
+            if [ -n "$unpushed_commits" ]; then
+                echo "📦 Found unpushed commits. Creating tag only..."
+                echo "Unpushed commits:"
+                echo "$unpushed_commits"
+                
+                # Skip to tag creation
+                git push
+                
+                # --- Tag increment ---
+                git fetch --tags
+                last_tag=$(git tag --sort=-v:refname | head -n 1)
+                if [ -z "$last_tag" ]; then
+                    major=0; minor=1; patch=0
+                else
+                    version=${last_tag#v}
+                    IFS='.' read -r major minor patch <<< "$version"
+                fi
+
+                case $BUMP in
+                    major) major=$((major + 1)); minor=0; patch=0 ;;
+                    minor) minor=$((minor + 1)); patch=0 ;;
+                    patch) patch=$((patch + 1)) ;;
+                esac
+
+                new_tag="v${major}.${minor}.${patch}"
+                
+                if [ "$DRY_RUN" = true ]; then
+                    echo ">>> Dry-run: would push commits and create tag: $new_tag"
+                    exit 0
+                fi
+                
+                git tag "$new_tag"
+                git push origin "$new_tag"
+                
+                echo ">>> New tag created: $new_tag"
+                echo "✅ Commits pushed and tag successfully created."
+                exit 0
+            else
+                echo "No changes to commit"
+                exit 0
+            fi
         else
             diff_output="$unstaged_changes"
         fi
