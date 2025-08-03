@@ -30,70 +30,70 @@ while [[ $# -gt 0 ]]; do
             ;;
         --tag)
             TAG_ONLY=true
-            # Проверяем, есть ли следующий аргумент и это не флаг
+            # Check if the next argument exists and is not a flag
             if [[ $# -gt 1 && ! "$2" =~ ^-- ]]; then
                 BUMP="$2"
                 shift 2
             else
-                BUMP="patch"  # по умолчанию patch
+                BUMP="patch"  # default is patch
                 shift 1
             fi
             ;;
         --register)
-            echo "🔧 Регистрируем команду git-ai-commit глобально..."
+            echo "🔧 Registering git-ai-commit command globally..."
             
-            # Получаем абсолютный путь к скрипту
-            SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
+            # Get the absolute path to the script
+            SCRIPT_PATH="$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)/$(basename \"${BASH_SOURCE[0]}\")"
             
-            # Проверяем права на запись в /usr/local/bin
+            # Check write permissions for /usr/local/bin
             if [ -w /usr/local/bin ]; then
                 ln -sf "$SCRIPT_PATH" /usr/local/bin/git-ai-commit
-                echo "✅ Команда git-ai-commit успешно зарегистрирована!"
-                echo "💡 Теперь вы можете использовать 'git-ai-commit' из любой папки"
+                echo "✅ git-ai-commit command successfully registered!"
+                echo "💡 Now you can use 'git-ai-commit' from any folder"
             else
-                echo "🔐 Требуются права администратора для регистрации команды:"
+                echo "🔐 Administrator rights are required to register the command:"
                 echo "sudo ln -sf '$SCRIPT_PATH' /usr/local/bin/git-ai-commit"
                 echo ""
-                echo "Или добавьте эту команду в ваш ~/.bashrc:"
+                echo "Or add this command to your ~/.bashrc:"
                 echo "alias git-ai-commit='$SCRIPT_PATH'"
             fi
             exit 0
             ;;
         --help)
-            echo "Git AI Commit - автоматическая генерация commit сообщений"
+            echo "Git AI Commit - automatic commit message generation"
             echo ""
-            echo "Использование: $0 [OPTIONS]"
+            echo "Usage: $0 [OPTIONS]"
             echo ""
-            echo "Опции:"
-            echo "  --model MODEL     Модель Ollama (по умолчанию: llama3:latest)"
-            echo "  --bump TYPE       Тип версии: major|minor|patch (по умолчанию: patch)"
-            echo "  --dry-run         Показать сообщение без коммита"
-            echo "  --lang LANG       Язык сообщения (по умолчанию: english)"
-            echo "  --tag [TYPE]      Работать только с тегами: patch|minor|major (по умолчанию: patch)"
-            echo "  --register        Зарегистрировать команду глобально"
-            echo "  --help            Показать эту справку"
+            echo "Options:"
+            echo "  --model MODEL     Ollama model (default: llama3:latest)"
+            echo "  --bump TYPE       Version type: major|minor|patch (default: patch)"
+            echo "  --dry-run         Show message without committing"
+            echo "  --lang LANG       Message language (default: english)"
+            echo "  --tag [TYPE]      Work only with tags: patch|minor|major (default: patch)"
+            echo "  --register        Register command globally"
+            echo "  --help            Show this help"
             echo ""
-            echo "Примеры:"
-            echo "  $0                           # Базовое использование"
-            echo "  $0 --model llama2 --dry-run # Тест с другой моделью"
-            echo "  $0 --bump minor              # Увеличить minor версию"
-            echo "  $0 --tag                     # Увеличить patch тег"
-            echo "  $0 --tag minor               # Увеличить minor тег"
-            echo "  $0 --tag major               # Увеличить major тег"
-            echo "  $0 --register                # Зарегистрировать команду"
+            echo "Examples:"
+            echo "  $0                           # Basic usage"
+            echo "  $0 --model llama2 --dry-run # Test with another model"
+            echo "  $0 --bump minor              # Increment minor version"
+            echo "  $0 --tag                     # Increment patch tag"
+            echo "  $0 --tag minor               # Increment minor tag"
+            echo "  $0 --tag major               # Increment major tag"
+            echo "  $0 --register                # Register command"
             exit 0
             ;;
         *)
-            echo "Неизвестный аргумент: $1"
-            echo "Используйте --help для справки"
+            echo "Unknown argument: $1"
+            echo "Use --help for help"
             exit 1
             ;;
     esac
 done
 
-# --- Режим только тегов ---
+# --- Tag-only mode ---
 if [ "$TAG_ONLY" = true ]; then
-    echo "🏷️  Работаем только с тегами..."
+    echo "🏷️  Working with tags only..."
     
     # --- Tag increment ---
     git fetch --tags
@@ -114,7 +114,7 @@ if [ "$TAG_ONLY" = true ]; then
     new_tag="v${major}.${minor}.${patch}"
     
     if [ "$DRY_RUN" = true ]; then
-        echo ">>> Dry-run: новый тег будет: $new_tag"
+        echo ">>> Dry-run: new tag will be: $new_tag"
         exit 0
     fi
     
@@ -122,24 +122,22 @@ if [ "$TAG_ONLY" = true ]; then
     git push origin "$new_tag"
     
     echo ">>> New tag created: $new_tag"
-    echo "✅ Тег успешно создан и отправлен."
+    echo "✅ Tag successfully created and pushed."
     exit 0
 fi
 
 # --- Проверка Ollama ---
 if ! curl -s --connect-timeout 1 "$OLLAMA_URL" > /dev/null; then
-    echo "❌ Ollama сервер не запущен на $OLLAMA_URL"
+    echo "❌ Ollama server is not running at $OLLAMA_URL"
     exit 0
 fi
 
-# --- Проверка модели ---
-# --- Model check ---
 if ! curl -s "$OLLAMA_URL/api/tags" | grep -q "\"name\":\"$MODEL\""; then
-    echo "❌ Модель $MODEL не загружена в Ollama"
+    echo "❌ Model $MODEL is not loaded in Ollama"
     exit 0
 fi
 
-# --- Ollama check ---
+ # --- Ollama check ---
 if ! curl -s --connect-timeout 1 "$OLLAMA_URL" > /dev/null; then
     echo "❌ Ollama server is not running at $OLLAMA_URL"
     exit 0
@@ -178,7 +176,7 @@ fi
 # Simplify the diff for JSON safety
 simple_diff=$(echo "$diff_output" | head -3 | tr -cd '[:alnum:][:space:]._-' | tr '\n' ' ')
 
-echo "🔍 Отправляем запрос к модели $MODEL..."
+echo "🔍 Sending request to model $MODEL..."
 
 # Try to get a commit message from the model with a very direct prompt
 response=$(curl -s -w "HTTP_STATUS:%{http_code}" "$OLLAMA_URL/api/generate" \
@@ -212,7 +210,7 @@ commit_message=$(echo "$commit_message" | sed 's/^[[:space:]]*//; s/[[:space:]]*
 
 # If still empty, try a different approach
 if [ -z "$commit_message" ]; then
-    echo "🔄 Пробуем альтернативный промпт..."
+    echo "🔄 Trying alternative prompt..."
     response=$(curl -s -w "HTTP_STATUS:%{http_code}" "$OLLAMA_URL/api/generate" \
       -H "Content-Type: application/json" \
       -d "{\"model\": \"$MODEL\", \"prompt\": \"Generate a short git commit message (under 50 characters) for: $simple_diff\", \"stream\": false}")
@@ -221,7 +219,7 @@ if [ -z "$commit_message" ]; then
     response_body=$(echo "$response" | sed 's/HTTP_STATUS:[0-9]*$//')
     
     if [ "$http_status" != "200" ]; then
-        echo "❌ Ошибка при втором запросе (HTTP $http_status):"
+        echo "❌ Error on second request (HTTP $http_status):"
         echo "$response_body"
         exit 1
     fi
