@@ -1,6 +1,10 @@
 #!/bin/bash
 set -e
 
+# --- Constants ---
+MAX_COMMIT_MESSAGE_LENGTH=102    # Maximum allowed length for commit messages
+TRUNCATED_MESSAGE_LENGTH=99     # Length limit for truncation (leaving space for "...")
+MAX_SIMPLE_MESSAGE_LENGTH=50    # Maximum length for fallback simple prompts
 
 MODEL="llama3:latest"
 BUMP="patch"
@@ -216,9 +220,9 @@ code_changes=$(echo "$diff_output" | grep -E "^[+-]" | grep -v "^[+-][+-][+-]" |
 
 # Create a better prompt with more context
 if [ "$LANG" = "russian" ]; then
-    prompt="Сгенерируй только сообщение коммита (максимум 50 символов) на русском языке для изменений в файлах: $file_summary. Ответь только сообщением без дополнительного текста."
+    prompt="Сгенерируй только сообщение коммита (максимум $MAX_COMMIT_MESSAGE_LENGTH символов) на русском языке для изменений в файлах: $file_summary. Ответь только сообщением без дополнительного текста."
 else
-    prompt="Generate only a commit message (max 50 chars) in English for file changes: $file_summary. Reply with only the message, no extra text."
+    prompt="Generate only a commit message (max $MAX_COMMIT_MESSAGE_LENGTH chars) in English for file changes: $file_summary. Reply with only the message, no extra text."
 fi
 
 echo "🔍 Sending request to model $MODEL..."
@@ -260,8 +264,8 @@ fi
 commit_message=$(echo "$commit_message" | tr '\n' ' ' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//; s/\\$//; s/"$//; s/^"//; s/  */ /g' | head -n 1)
 
 # Truncate if too long
-if [ ${#commit_message} -gt 72 ]; then
-    commit_message=$(echo "$commit_message" | cut -c1-69)...
+if [ ${#commit_message} -gt $MAX_COMMIT_MESSAGE_LENGTH ]; then
+    commit_message=$(echo "$commit_message" | cut -c1-$TRUNCATED_MESSAGE_LENGTH)...
 fi
 
 # If still empty, try a different approach
@@ -272,9 +276,9 @@ if [ -z "$commit_message" ]; then
     simple_diff=$(echo "$diff_output" | head -3 | tr -cd '[:alnum:][:space:]._-' | tr '\n' ' ')
     
     if [ "$LANG" = "russian" ]; then
-        fallback_prompt="Только сообщение коммита (до 40 символов): $simple_diff"
+        fallback_prompt="Только сообщение коммита (до $MAX_SIMPLE_MESSAGE_LENGTH символов): $simple_diff"
     else
-        fallback_prompt="Only commit message (under 40 chars): $simple_diff"
+        fallback_prompt="Only commit message (under $MAX_SIMPLE_MESSAGE_LENGTH chars): $simple_diff"
     fi
     
     response=$(curl -s -w "HTTP_STATUS:%{http_code}" "$OLLAMA_URL/api/generate" \
