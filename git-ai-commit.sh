@@ -44,22 +44,41 @@ while [[ $# -gt 0 ]]; do
             fi
             ;;
         --register)
-            echo "🔧 Registering git-ai-commit command globally..."
+            echo "🔧 Registering git-commit command globally..."
             
             # Get the absolute path to the script
-            SCRIPT_PATH="$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)/$(basename \"${BASH_SOURCE[0]}\")"
+            SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
             
             # Check write permissions for /usr/local/bin
             if [ -w /usr/local/bin ]; then
-                ln -sf "$SCRIPT_PATH" /usr/local/bin/git-ai-commit
-                echo "✅ git-ai-commit command successfully registered!"
-                echo "💡 Now you can use 'git-ai-commit' from any folder"
+                ln -sf "$SCRIPT_PATH" /usr/local/bin/git-commit
+                echo "✅ git-commit command successfully registered!"
+                echo "💡 Now you can use 'git-commit' from any folder"
             else
                 echo "🔐 Administrator rights are required to register the command:"
-                echo "sudo ln -sf '$SCRIPT_PATH' /usr/local/bin/git-ai-commit"
+                echo "sudo ln -sf \"$SCRIPT_PATH\" /usr/local/bin/git-commit"
                 echo ""
                 echo "Or add this command to your ~/.bashrc:"
-                echo "alias git-ai-commit='$SCRIPT_PATH'"
+                echo "alias git-commit=\"$SCRIPT_PATH\""
+            fi
+            exit 0
+            ;;
+        --uninstall)
+            echo "🗑️  Uninstalling git-commit command..."
+            
+            # Check if symlink exists in /usr/local/bin
+            if [ -L /usr/local/bin/git-commit ]; then
+                if [ -w /usr/local/bin ]; then
+                    rm /usr/local/bin/git-commit
+                    echo "✅ git-commit command successfully uninstalled!"
+                else
+                    echo "🔐 Administrator rights are required to uninstall the command:"
+                    echo "sudo rm /usr/local/bin/git-commit"
+                fi
+            else
+                echo "ℹ️  git-commit command is not installed globally"
+                echo "💡 If you used alias in ~/.bashrc, remove this line manually:"
+                echo "alias git-commit='$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)/$(basename \"${BASH_SOURCE[0]}\")'"
             fi
             exit 0
             ;;
@@ -75,6 +94,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --lang LANG       Message language (default: english)"
             echo "  --tag [TYPE]      Work only with tags: patch|minor|major (default: patch)"
             echo "  --register        Register command globally"
+            echo "  --uninstall       Uninstall globally registered command"
             echo "  --help            Show this help"
             echo ""
             echo "Examples:"
@@ -85,6 +105,7 @@ while [[ $# -gt 0 ]]; do
             echo "  $0 --tag minor               # Increment minor tag"
             echo "  $0 --tag major               # Increment major tag"
             echo "  $0 --register                # Register command"
+            echo "  $0 --uninstall               # Uninstall command"
             exit 0
             ;;
         *)

@@ -43,20 +43,31 @@ Works even without external dependencies like `jq` and supports **dry-run mode**
    cd git-ai-commit
    ```
 
-2. Register commands globally:
+2. Register command globally:
    ```bash
    ./git-ai-commit.sh --register
-   ./git-tag.sh --register
    ```
 
-That's it! Now you can use `git-ai-commit` and `git-tag-bump` from any directory.
+That's it! Now you can use `git-commit` from any directory.
+
+### Uninstallation
+
+To remove globally installed command:
+
+```bash
+./git-ai-commit.sh --uninstall
+```
+
+Or manually remove symlink:
+```bash
+sudo rm /usr/local/bin/git-commit
+```
 
 ### Manual Installation
 
 ```bash
-chmod +x git-ai-commit.sh git-tag.sh
-sudo ln -sf "$(pwd)/git-ai-commit.sh" /usr/local/bin/git-ai-commit
-sudo ln -sf "$(pwd)/git-tag.sh" /usr/local/bin/git-tag-bump
+chmod +x git-ai-commit.sh
+sudo ln -sf "$(pwd)/git-ai-commit.sh" /usr/local/bin/git-commit
 ```
 
 ---
@@ -66,23 +77,23 @@ sudo ln -sf "$(pwd)/git-tag.sh" /usr/local/bin/git-tag-bump
 ### Commit + push + tag:
 
 ```bash
-git-ai-commit --model llama3:latest --bump patch
+git-commit --model llama3:latest --bump patch
 ```
 
 ### Only create and push tag (no commit):
 
 ```bash
-git-ai-commit --tag           # Increase patch: v0.1.2 → v0.1.3
-git-ai-commit --tag minor     # Increase minor: v0.1.2 → v0.2.0
-git-ai-commit --tag major     # Increase major: v0.1.2 → v1.0.0
+git-commit --tag           # Increase patch: v0.1.2 → v0.1.3
+git-commit --tag minor     # Increase minor: v0.1.2 → v0.2.0
+git-commit --tag major     # Increase major: v0.1.2 → v1.0.0
 ```
 
 ### Dry‑run (preview only):
 
 ```bash
-git-ai-commit --model llama3:latest --dry-run
-git-ai-commit --tag --dry-run        # Preview patch increment
-git-ai-commit --tag major --dry-run  # Preview major increment
+git-commit --model llama3:latest --dry-run
+git-commit --tag --dry-run        # Preview patch increment
+git-commit --tag major --dry-run  # Preview major increment
 ```
 
 ### Arguments:
@@ -93,6 +104,7 @@ git-ai-commit --tag major --dry-run  # Preview major increment
 * `--tag [TYPE]` – work only with tags: patch|minor|major (default: patch).
 * `--lang <language>` – language for the commit message (default: `english`). Example: `--lang russian` for Russian commit messages.
 * `--register` – register command globally for system-wide access.
+* `--uninstall` – uninstall globally registered command.
 * `--help` – show usage information.
 
 ---
@@ -101,19 +113,19 @@ git-ai-commit --tag major --dry-run  # Preview major increment
 
 ```bash
 # Full workflow: AI commit + tag
-$ git-ai-commit --model llama3:latest --bump minor
+$ git-commit --model llama3:latest --bump minor
 >>> Generated commit message: fix(auth): handle token refresh
 >>> New tag created: v0.2.0
 ✅ Commit and tag successfully created and pushed.
 
 # Only tag creation
-$ git-ai-commit --tag major
+$ git-commit --tag major
 🏷️  Работаем только с тегами...
 >>> New tag created: v1.0.0
 ✅ Тег успешно создан и отправлен.
 
 # Preview mode
-$ git-ai-commit --tag --dry-run
+$ git-commit --tag --dry-run
 🏷️  Работаем только с тегами...
 >>> Dry-run: новый тег будет: v0.1.3
 ```
