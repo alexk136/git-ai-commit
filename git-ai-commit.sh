@@ -2,9 +2,9 @@
 set -e
 
 # --- Constants ---
-MAX_COMMIT_MESSAGE_LENGTH=102    # Maximum allowed length for commit messages
-TRUNCATED_MESSAGE_LENGTH=99     # Length limit for truncation (leaving space for "...")
-MAX_SIMPLE_MESSAGE_LENGTH=50    # Maximum length for fallback simple prompts
+MAX_COMMIT_MESSAGE_LENGTH=200    # Maximum allowed length for commit messages
+TRUNCATED_MESSAGE_LENGTH=197     # Length limit for truncation (leaving space for "...")
+MAX_SIMPLE_MESSAGE_LENGTH=100    # Maximum length for fallback simple prompts
 
 MODEL="llama3:latest"
 BUMP="patch"
@@ -151,9 +151,53 @@ if [ "$TAG_ONLY" = true ]; then
     exit 0
 fi
 
+
 # --- Ollama check ---
 if ! curl -s --connect-timeout 1 "$OLLAMA_URL" > /dev/null; then
-    echo "❌ Ollama server is not running at $OLLAMA_URL"
+    echo "⚠️  Ollama server не запущен по адресу $OLLAMA_URL."
+    echo "Режим: только отправка на сервер и поднятие версии (без коммита)."
+
+    # Проверка на незафиксированные изменения (staged или unstaged)
+    if [ -n "$(git diff --cached)" ] || [ -n "$(git diff)" ]; then
+        echo "❌ Обнаружены незафиксированные изменения. Сначала закоммитьте текущие правки."
+        exit 1
+    fi
+
+    # Проверка на наличие изменений для пуша (unpushed commits)
+    unpushed_commits=$(git log origin/$(git branch --show-current)..HEAD --oneline 2>/dev/null || echo "")
+    if [ -z "$unpushed_commits" ]; then
+        echo "Нет изменений для отправки."
+        exit 0
+    fi
+
+    echo "📦 Найдены неподтверждённые коммиты. Выполняется только пуш и создание тега..."
+    git push
+
+    # --- Tag increment ---
+    git fetch --tags
+    last_tag=$(git tag --sort=-v:refname | head -n 1)
+    if [ -z "$last_tag" ]; then
+        major=0; minor=1; patch=0
+    else
+        version=${last_tag#v}
+        IFS='.' read -r major minor patch <<< "$version"
+    fi
+
+    case $BUMP in
+        major) major=$((major + 1)); minor=0; patch=0 ;;
+        minor) minor=$((minor + 1)); patch=0 ;;
+        patch) patch=$((patch + 1)) ;;
+    esac
+
+    new_tag="v${major}.${minor}.${patch}"
+    if [ "$DRY_RUN" = true ]; then
+        echo ">>> Dry-run: будет создан тег: $new_tag"
+        exit 0
+    fi
+    git tag "$new_tag"
+    git push origin "$new_tag"
+    echo ">>> Новый тег создан: $new_tag"
+    echo "✅ Коммиты отправлены и тег успешно создан."
     exit 0
 fi
 
