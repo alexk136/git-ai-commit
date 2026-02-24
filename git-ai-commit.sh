@@ -6,7 +6,7 @@ MAX_COMMIT_MESSAGE_LENGTH=200    # Maximum allowed length for commit messages
 TRUNCATED_MESSAGE_LENGTH=197     # Length limit for truncation (leaving space for "...")
 MAX_SIMPLE_MESSAGE_LENGTH=100    # Maximum length for fallback simple prompts
 
-MODEL="llama3:latest"
+MODEL="mistral-nemo:latest"
 BUMP="patch"
 OLLAMA_URL="http://127.0.0.1:11434"
 DRY_RUN=false
@@ -313,17 +313,16 @@ if [ "$http_status" != "200" ]; then
 fi
 
 # --- Parse response ---
-# Extract the response content, handling escaped quotes
-commit_message=$(echo "$response_body" | sed 's/.*"response":"\([^"]*\)".*/\1/' | sed 's/\\"/"/g' | sed 's/\\n/ /g')
+# Extract the response content using jq if available, otherwise fallback
+if command -v jq &> /dev/null; then
+    commit_message=$(echo "$response_body" | jq -r '.response // empty')
+else
+    # Fallback: extract response field using grep and sed
+    commit_message=$(echo "$response_body" | grep -o '"response":"[^}]*"' | sed 's/"response":"//' | sed 's/"$//' | sed 's/\\n/ /g' | sed 's/\\"/"/g')
+fi
 
 # Clean up common AI response patterns
 commit_message=$(echo "$commit_message" | sed 's/^[Hh]ere is a[^:]*: *//i' | sed 's/^[Cc]ommit message: *//i' | sed 's/^[Ss]ообщение коммита: *//i')
-
-# If that extracted just a backslash, try a different approach  
-if [ "$commit_message" = "\\" ] || [ -z "$commit_message" ]; then
-    # Handle cases where the response contains escaped quotes
-    commit_message=$(echo "$response_body" | sed 's/.*"response":"\\*"\([^"]*\)\\*"".*/\1/')
-fi
 
 # Clean up and trim - remove newlines, extra spaces, quotes
 commit_message=$(echo "$commit_message" | tr '\n' ' ' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//; s/\\$//; s/"$//; s/^"//; s/  */ /g' | head -n 1)
@@ -359,7 +358,13 @@ if [ -z "$commit_message" ]; then
         exit 1
     fi
     
-    commit_message=$(echo "$response_body" | grep -o '"response":"[^"]*"' | sed 's/"response":"//;s/"$//' | tr -d '\n' | sed 's/\\n/ /g')
+    # Extract response using jq if available, otherwise fallback
+    if command -v jq &> /dev/null; then
+        commit_message=$(echo "$response_body" | jq -r '.response // empty')
+    else
+        commit_message=$(echo "$response_body" | grep -o '"response":"[^}]*"' | sed 's/"response":"//' | sed 's/"$//' | sed 's/\\n/ /g' | sed 's/\\"/"/g')
+    fi
+    
     commit_message=$(echo "$commit_message" | sed 's/^[Hh]ere is a[^:]*: *//i' | sed 's/^[Cc]ommit message: *//i' | head -n 1 | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
 fi
 
