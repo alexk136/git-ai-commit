@@ -25,6 +25,60 @@ CONFIG_KEYS=(
     CURL_TIMEOUT CURL_RETRIES
 )
 
+# load_dotenv — source KEY=VALUE pairs from a .env file.
+#
+# Candidates (first existing wins):
+#   $GAIC_DOTENV           explicit path (colon-separated for multiple)
+#   <repo-root>/.env       auto-detected via `git rev-parse --show-toplevel`
+#   ./.env                 current working directory
+#
+# Standard dotenv semantics: pre-set env vars are NOT overridden, so
+# shell-exported values always win over .env. Supports `export ` prefix,
+# blank lines, `#` comments, and double- or single-quoted values.
+load_dotenv() {
+    local candidates=()
+    if [[ -n "${GAIC_DOTENV:-}" ]]; then
+        IFS=: read -r -a candidates <<<"$GAIC_DOTENV"
+    else
+        if [[ -n "${GAIC_REPO_ROOT:-}" && -f "$GAIC_REPO_ROOT/.env" ]]; then
+            candidates+=("$GAIC_REPO_ROOT/.env")
+        fi
+        if [[ -f "./.env" ]]; then
+            candidates+=("./.env")
+        fi
+    fi
+
+    local file line key value loaded=0
+    for file in "${candidates[@]}"; do
+        [[ -f "$file" ]] || continue
+        while IFS= read -r line || [[ -n "$line" ]]; do
+            line="${line#"${line%%[![:space:]]*}"}"
+            [[ -z "$line" || "${line:0:1}" == "#" ]] && continue
+            [[ "${line:0:7}" == "export " ]] && line="${line:7}"
+            [[ "$line" != *=* ]] && continue
+            key="${line%%=*}"
+            value="${line#*=}"
+            key="${key#"${key%%[![:space:]]*}"}"
+            key="${key%"${key##*[![:space:]]}"}"
+            [[ -z "$key" ]] && continue
+            if [[ "${#value}" -ge 2 && "${value:0:1}" == '"' && "${value: -1}" == '"' ]]; then
+                value="${value:1:-1}"
+            elif [[ "${#value}" -ge 2 && "${value:0:1}" == "'" && "${value: -1}" == "'" ]]; then
+                value="${value:1:-1}"
+            else
+                value="${value%% #*}"
+                value="${value%"${value##*[![:space:]]}"}"
+            fi
+            if [[ -z "${!key:-}" ]]; then
+                printf -v "$key" '%s' "$value"
+                (( loaded++ )) || true
+            fi
+        done < "$file"
+        ui_debug "Loaded .env: $file"
+    done
+    ui_debug "load_dotenv: set $loaded variable(s)"
+}
+
 config_discover_files() {
     GAIC_CONFIG_FILES=()
     if [[ -n "${GAIC_REPO_ROOT:-}" ]]; then

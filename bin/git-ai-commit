@@ -7,7 +7,8 @@ set -eo pipefail
 
 # --- Resolve script directory and source libs ------------------------------
 
-GAIC_LIB_DIR="${GAIC_LIB_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../lib" && pwd)}"
+GAIC_SELF="$(readlink -f "${BASH_SOURCE[0]}")"
+GAIC_LIB_DIR="${GAIC_LIB_DIR:-$(cd "$(dirname "$GAIC_SELF")/../lib" && pwd)}"
 
 # shellcheck source=lib/ui.sh
 source "$GAIC_LIB_DIR/ui.sh"
@@ -138,6 +139,7 @@ resolve_config() {
 
     # Per-repo + global config files
     GAIC_REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || true)
+    load_dotenv
     config_discover_files
     for key in "${CONFIG_KEYS[@]}"; do
         local value cli_var
