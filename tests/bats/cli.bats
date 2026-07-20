@@ -1,0 +1,88 @@
+#!/usr/bin/env bats
+# tests/bats/cli.bats — end-to-end tests invoking bin/git-ai-commit.
+
+load 'helpers/common'
+
+setup() {
+    TMP="$(mktemp -d)"
+    cd "$TMP"
+    git init -q -b main
+    git config user.email t@t && git config user.name t
+    echo a > a && git add a && git commit -qm c
+    echo new >> a
+    BIN="$ROOT_DIR/bin/git-ai-commit"
+}
+
+teardown() {
+    mock_stop
+    cd /
+    rm -rf "$TMP"
+}
+
+@test "cli: --help exits 0" {
+    run "$BIN" --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"git-ai-commit"* ]]
+    [[ "$output" == *"--provider"* ]]
+    [[ "$output" == *"openrouter"* ]]
+}
+
+@test "cli: --tag patch --dry-run prints next version" {
+    run "$BIN" --tag patch --dry-run
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"v0.1.1"* ]]
+}
+
+@test "cli: --tag minor --dry-run bumps minor" {
+    run "$BIN" --tag minor --dry-run
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"v0.2.0"* ]]
+}
+
+@test "cli: --tag major --dry-run bumps major" {
+    run "$BIN" --tag major --dry-run
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"v1.0.0"* ]]
+}
+
+@test "cli: --tag rejects invalid bump" {
+    run "$BIN" --tag bogus
+    [ "$status" -ne 0 ]
+}
+
+@test "cli: unknown option is rejected" {
+    run "$BIN" --no-such-flag
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Unknown argument"* ]]
+}
+
+@test "cli: per-repo .gitaicommit is loaded" {
+    if ! command -v jq &>/dev/null; then skip "jq not installed"; fi
+    port=$(mock_openai_start)
+    cat > .gitaicommit <<EOF
+PROVIDER=openai
+MODEL=gpt-4o-mini
+API_KEY=sk-fake
+BASE_URL=http://127.0.0.1:$port
+EOF
+    run "$BIN" --dry-run
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"openai model gpt-4o-mini"* ]]
+    [[ "$output" == *"Generated message"* ]]
+}
+
+@test "cli: env var OPENAI_API_KEY auto-selects openai" {
+    if ! command -v jq &>/dev/null; then skip "jq not installed"; fi
+    port=$(mock_openai_start)
+    run env OPENAI_API_KEY=sk-fake "$BIN" --base-url "http://127.0.0.1:$port" --dry-run
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Auto-selected provider: openai"* ]]
+    [[ "$output" == *"openai model gpt-4o-mini"* ]]
+}
+
+@test "cli: missing API key for non-ollama provider fails" {
+    env -u OPENAI_API_KEY -u OPENROUTER_API_KEY -u ANTHROPIC_API_KEY -u MINIMAX_API_KEY \
+        run "$BIN" --provider openai
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"OPENAI_API_KEY"* ]]
+}

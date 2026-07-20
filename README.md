@@ -101,7 +101,7 @@ git-commit --tag major --dry-run  # Preview major increment
 * `--model <name>` – model to use (default: `llama3:latest`).
 * `--bump patch|minor|major` – version bump type (default: `patch`).
 * `--dry-run` – preview generated message without committing or pushing.
-* `--tag [TYPE]` – work only with tags: patch|minor|major (default: patch).
+* `--tag [TYPE]` – work only with numeric `vN.N.N` tags: patch|minor|major (default: patch). Non-version tags are ignored.
 * `--lang <language>` – language for the commit message (default: `english`). Example: `--lang russian` for Russian commit messages.
 * `--register` – register command globally for system-wide access.
 * `--uninstall` – uninstall globally registered command.

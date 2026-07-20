@@ -1,0 +1,25 @@
+# Secrets
+.env
+.env.local
+
+# Python (if added later)
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+build/
+dist/
+*.egg-info/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Mock artifacts (tests)
+tests/bats/helpers/*.pyc

@@ -1,0 +1,468 @@
+#!/usr/bin/env bash
+# git-ai-commit — generate commit messages with an LLM, commit, push, tag.
+#
+# Subcommands and full docs: run `git-ai-commit --help`.
+
+set -eo pipefail
+
+# --- Resolve script directory and source libs ------------------------------
+
+GAIC_LIB_DIR="${GAIC_LIB_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../lib" && pwd)}"
+
+# shellcheck source=lib/ui.sh
+source "$GAIC_LIB_DIR/ui.sh"
+# shellcheck source=lib/config.sh
+source "$GAIC_LIB_DIR/config.sh"
+# shellcheck source=lib/tags.sh
+source "$GAIC_LIB_DIR/tags.sh"
+# shellcheck source=lib/git.sh
+source "$GAIC_LIB_DIR/git.sh"
+# shellcheck source=lib/llm.sh
+source "$GAIC_LIB_DIR/llm.sh"
+# shellcheck source=lib/prompt.sh
+source "$GAIC_LIB_DIR/prompt.sh"
+
+# --- Defaults ---------------------------------------------------------------
+
+DEFAULT_PROVIDER="ollama"
+DEFAULT_MODEL="mistral-nemo:latest"
+DEFAULT_BUMP="patch"
+DEFAULT_LANG="english"
+DEFAULT_MAX_COMMIT_MESSAGE_LENGTH=200
+DEFAULT_MAX_SIMPLE_MESSAGE_LENGTH=100
+DEFAULT_CURL_TIMEOUT=60
+DEFAULT_CURL_CONN_TIMEOUT=5
+DEFAULT_CURL_RETRIES=2
+
+# Working state (set by CLI parsing, config loading, and auto-detect)
+PROVIDER=""
+MODEL=""
+MODEL_OVERRIDE=false
+PROVIDER_OVERRIDE=false
+BUMP=""
+LANG=""
+BASE_URL=""
+API_KEY=""
+MAX_COMMIT_MESSAGE_LENGTH=""
+MAX_SIMPLE_MESSAGE_LENGTH=""
+CURL_TIMEOUT=""
+CURL_CONN_TIMEOUT=""
+CURL_RETRIES=""
+DRY_RUN=false
+TAG_ONLY=false
+AUTO_INSTALL=false
+
+# --- Usage ------------------------------------------------------------------
+
+usage() {
+    cat <<EOF
+${C_BOLD}git-ai-commit${C_RESET} — generate a commit message with an LLM, commit, push, and tag.
+
+${C_BOLD}USAGE${C_RESET}
+    git-ai-commit [OPTIONS]
+
+${C_BOLD}OPTIONS${C_RESET}
+    --provider NAME        LLM provider: ollama|openai|openrouter|anthropic|minimax
+                           (auto-detected from OPENAI_API_KEY/OPENROUTER_API_KEY/
+                            ANTHROPIC_API_KEY/MINIMAX_API_KEY; falls back to ollama)
+    --model MODEL          Model name (default per provider; overridable via
+                           <PROVIDER>_MODEL or GAIC_MODEL env vars; see below)
+    --api-key KEY          API key (else from env: OPENAI_API_KEY, OPENROUTER_API_KEY,
+                           ANTHROPIC_API_KEY, MINIMAX_API_KEY)
+    --base-url URL         Override provider base URL
+    --bump TYPE            Version bump: patch|minor|major (default: patch)
+    --dry-run              Print generated message, do not commit or push
+    --lang LANG            Commit message language: english|russian (default: english)
+    --tag [TYPE]           Tag-only mode: bump and push the next semver tag
+    --max-length N         Max commit message length (default: 200)
+    --install              Install as /usr/local/bin/git-commit (or print sudo cmd)
+    --uninstall            Remove /usr/local/bin/git-commit
+    --verbose              Enable debug logging
+    --quiet                Suppress info messages
+    -h, --help             Show this help
+
+${C_BOLD}PROVIDER DEFAULTS${C_RESET}
+    ollama       model=mistral-nemo:latest          base=http://127.0.0.1:11434
+    openai       model=gpt-4o-mini                  base=https://api.openai.com/v1
+    openrouter   model=anthropic/claude-3.5-haiku   base=https://openrouter.ai/api/v1
+    anthropic    model=claude-3-5-haiku-latest      base=https://api.anthropic.com/v1
+    minimax      model=MiniMax-M3                   base=https://api.minimax.io/v1
+
+${C_BOLD}CONFIGURATION${C_RESET}
+    Per-repo:   <repo>/.gitaicommit  (KEY=VALUE, one per line, # comments)
+    Global:     \$XDG_CONFIG_HOME/git-ai-commit/config
+                (defaults to ~/.config/git-ai-commit/config)
+
+    Recognized keys: PROVIDER, MODEL, BASE_URL, API_KEY, BUMP, LANG,
+                     MAX_COMMIT_MESSAGE_LENGTH, MAX_SIMPLE_MESSAGE_LENGTH,
+                     CURL_TIMEOUT, CURL_RETRIES
+
+    See examples/.gitaicommit.example for a sample.
+
+${C_BOLD}EXAMPLES${C_RESET}
+    git-ai-commit                                ${C_DIM}# use auto-detected provider${C_RESET}
+    git-ai-commit --dry-run                      ${C_DIM}# preview the message${C_RESET}
+    git-ai-commit --provider openai \\
+                 --model gpt-4o
+    git-ai-commit --provider openrouter \\
+                 --model x-ai/grok-4
+    git-ai-commit --provider anthropic \\
+                 --model claude-sonnet-4-5
+    git-ai-commit --tag                          ${C_DIM}# bump patch and push tag${C_RESET}
+    git-ai-commit --tag minor --dry-run
+    git-ai-commit --install                      ${C_DIM}# install as 'git-commit'${C_RESET}
+EOF
+}
+
+# --- Helpers ----------------------------------------------------------------
+
+apply_default() {
+    local var="$1" default="$2"
+    if [[ -z "${!var:-}" ]]; then
+        printf -v "$var" '%s' "$default"
+    fi
+}
+
+# resolve_config — apply defaults, env, configs, auto-detect provider.
+# Sets all working-state vars to their final values.
+resolve_config() {
+    apply_default PROVIDER "$DEFAULT_PROVIDER"
+    apply_default MODEL "$DEFAULT_MODEL"
+    apply_default BUMP "$DEFAULT_BUMP"
+    apply_default LANG "$DEFAULT_LANG"
+    apply_default MAX_COMMIT_MESSAGE_LENGTH "$DEFAULT_MAX_COMMIT_MESSAGE_LENGTH"
+    apply_default MAX_SIMPLE_MESSAGE_LENGTH "$DEFAULT_MAX_SIMPLE_MESSAGE_LENGTH"
+    apply_default CURL_TIMEOUT "$DEFAULT_CURL_TIMEOUT"
+    apply_default CURL_CONN_TIMEOUT "$DEFAULT_CURL_CONN_TIMEOUT"
+    apply_default CURL_RETRIES "$DEFAULT_CURL_RETRIES"
+
+    # Per-repo + global config files
+    GAIC_REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || true)
+    config_discover_files
+    for key in "${CONFIG_KEYS[@]}"; do
+        local value cli_var
+        cli_var="CLI_${key}"
+        if value=$(config_file_lookup "$key"); then
+            # Only apply if the value is not already overridden by CLI
+            if [[ -z "${!cli_var:-}" ]]; then
+                printf -v "$key" '%s' "$value"
+            fi
+        fi
+    done
+
+    # Auto-detect provider from env if not explicitly set
+    if [[ -z "${CLI_PROVIDER:-}" ]] && [[ "$PROVIDER" == "$DEFAULT_PROVIDER" ]]; then
+        local try_provider env_var
+        for try_provider in openrouter openai anthropic minimax; do
+            env_var=$(get_provider_env_key "$try_provider")
+            if [[ -n "${!env_var:-}" ]]; then
+                PROVIDER="$try_provider"
+                ui_info "Auto-selected provider: $PROVIDER (from $env_var)"
+                break
+            fi
+        done
+    fi
+
+    # Per-provider defaults — applied LAST so they reflect the final
+    # PROVIDER (after config + auto-detect). Only fill in fields that
+    # are still at their global default values.
+    if [[ -z "$BASE_URL" ]]; then
+        BASE_URL=$(get_provider_default_base_url "$PROVIDER")
+    fi
+    if [[ "$MODEL_OVERRIDE" == false ]] \
+        && [[ "$MODEL" == "$DEFAULT_MODEL" ]] \
+        && [[ "$PROVIDER" != "$DEFAULT_PROVIDER" ]]; then
+        MODEL=$(get_provider_default_model "$PROVIDER")
+    fi
+
+    # Per-provider MODEL env var (e.g. OPENAI_MODEL=gpt-4o) beats config
+    # and per-provider default. Falls back to the generic GAIC_MODEL.
+    # CLI --model still wins.
+    if [[ "$MODEL_OVERRIDE" == false ]]; then
+        local env_model_var
+        env_model_var=$(get_provider_env_model "$PROVIDER" 2>/dev/null || true)
+        if [[ -n "${env_model_var:-}" ]] && [[ -n "${!env_model_var:-}" ]]; then
+            MODEL="${!env_model_var}"
+        elif [[ -n "${GAIC_MODEL:-}" ]]; then
+            MODEL="$GAIC_MODEL"
+        fi
+    fi
+
+    # Validate
+    config_validate PROVIDER "$PROVIDER" || exit 1
+    config_validate BUMP "$BUMP" || exit 1
+    for key in MAX_COMMIT_MESSAGE_LENGTH MAX_SIMPLE_MESSAGE_LENGTH CURL_TIMEOUT CURL_RETRIES; do
+        config_validate "$key" "${!key}" || exit 1
+    done
+}
+
+# --- Install / uninstall ----------------------------------------------------
+
+install_symlink() {
+    local script_path target
+    script_path="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
+    target="/usr/local/bin/git-commit"
+    ui_step "Installing $target → $script_path"
+    if [[ -w /usr/local/bin ]]; then
+        ln -sf "$script_path" "$target"
+        ui_ok "Installed. Use 'git-commit' from any directory."
+    else
+        ui_warn "Need root to install into /usr/local/bin. Run:"
+        echo "    sudo ln -sf \"$script_path\" \"$target\""
+        echo
+        echo "Or add to ~/.bashrc:"
+        echo "    alias git-commit=\"$script_path\""
+    fi
+}
+
+uninstall_symlink() {
+    local target="/usr/local/bin/git-commit"
+    if [[ -L "$target" ]]; then
+        if [[ -w /usr/local/bin ]]; then
+            rm "$target"
+            ui_ok "Removed $target"
+        else
+            ui_warn "Need root to remove $target. Run:"
+            echo "    sudo rm \"$target\""
+        fi
+    else
+        ui_info "No symlink at $target — nothing to remove."
+    fi
+}
+
+# --- Diff collection --------------------------------------------------------
+
+collect_diff() {
+    local diff=""
+    diff=$(git diff --cached)
+    if [[ -n "$diff" ]]; then
+        printf '%s\n' "$diff"
+        return 0
+    fi
+
+    local untracked unstaged
+    untracked=$(git ls-files --others --exclude-standard)
+    unstaged=$(git diff)
+
+    if [[ -n "$untracked" ]]; then
+        local file
+        for file in $untracked; do
+            diff+="New file: $file"$'\n'
+            diff+="$(cat "$file")"$'\n'
+        done
+        printf '%s\n' "$diff"
+        return 0
+    fi
+
+    if [[ -n "$unstaged" ]]; then
+        printf '%s\n' "$unstaged"
+        return 0
+    fi
+
+    return 1
+}
+
+# --- Provider readiness -----------------------------------------------------
+
+check_provider_ready() {
+    case "$PROVIDER" in
+        ollama)
+            if ! curl --silent --connect-timeout 1 --max-time 2 "$BASE_URL" >/dev/null 2>&1; then
+                ui_warn "Ollama server не запущен по адресу $BASE_URL."
+                ui_info "Режим: только отправка на сервер и поднятие версии (без коммита)."
+
+                if ! require_clean_working_tree; then
+                    exit 1
+                fi
+
+                local unpushed
+                unpushed=$(unpushed_commits || true)
+                if [[ -z "$unpushed" ]]; then
+                    ui_info "Нет изменений для отправки."
+                    exit 0
+                fi
+
+                ui_step "Найдены неподтверждённые коммиты. Только push и тег..."
+                git push
+
+                prepare_next_numeric_tag "$BUMP" || exit 1
+                if [[ "$DRY_RUN" == true ]]; then
+                    ui_arrow "Dry-run: будет создан тег: $new_tag"
+                    exit 0
+                fi
+                git tag "$new_tag"
+                git push origin "$new_tag"
+                ui_ok "Новый тег создан: $new_tag"
+                ui_ok "Коммиты отправлены и тег успешно создан."
+                exit 0
+            fi
+
+            if ! curl --silent "$BASE_URL/api/tags" | grep -q "\"name\":\"$MODEL\""; then
+                ui_error "Model $MODEL is not loaded in Ollama"
+                exit 1
+            fi
+            ;;
+        *)
+            local api_key env_var
+            api_key=$(resolve_api_key "$PROVIDER")
+            if [[ -z "$api_key" ]]; then
+                env_var=$(get_provider_env_key "$PROVIDER")
+                ui_error "API key for $PROVIDER not found."
+                ui_error "Set $env_var or pass --api-key."
+                exit 1
+            fi
+            ;;
+    esac
+}
+
+# --- Tag-only mode ----------------------------------------------------------
+
+run_tag_only() {
+    ui_step "Working with tags only..."
+    prepare_next_numeric_tag "$BUMP" || exit 1
+    if [[ "$DRY_RUN" == true ]]; then
+        ui_arrow "Dry-run: new tag will be: $new_tag"
+        exit 0
+    fi
+    git tag "$new_tag"
+    git push origin "$new_tag"
+    ui_ok "New tag created: $new_tag"
+    exit 0
+}
+
+# --- Push-only fallback when there are no local changes -------------------
+
+run_push_only() {
+    local branch unpushed
+    branch=$(current_branch)
+    if [[ -z "$branch" ]]; then
+        ui_error "Not on a branch (detached HEAD?)"
+        exit 1
+    fi
+    unpushed=$(git log "origin/${branch}..HEAD" --oneline 2>/dev/null || true)
+    if [[ -z "$unpushed" ]]; then
+        ui_info "No changes to commit"
+        exit 0
+    fi
+    ui_info "Found unpushed commits. Creating tag only..."
+    echo "$unpushed"
+    git push
+    prepare_next_numeric_tag "$BUMP" || exit 1
+    if [[ "$DRY_RUN" == true ]]; then
+        ui_arrow "Dry-run: would push commits and create tag: $new_tag"
+        exit 0
+    fi
+    git tag "$new_tag"
+    git push origin "$new_tag"
+    ui_ok "Commits pushed and tag successfully created."
+    exit 0
+}
+
+# --- Main commit-and-tag flow ----------------------------------------------
+
+generate_and_commit() {
+    local diff_output prompt
+    if ! diff_output=$(collect_diff); then
+        run_push_only
+    fi
+
+    prompt=$(build_prompt "$diff_output" "$LANG" "$MAX_COMMIT_MESSAGE_LENGTH")
+    ui_step "Sending request to $PROVIDER model $MODEL..."
+
+    if ! generate_commit_message "$prompt" "$MODEL"; then
+        ui_error "Failed to get commit message from $PROVIDER"
+        exit 1
+    fi
+
+    local commit_message
+    commit_message=$(cleanup_message "$LAST_COMMIT_MESSAGE")
+
+    # Truncate
+    if [[ "${#commit_message}" -gt "$MAX_COMMIT_MESSAGE_LENGTH" ]]; then
+        commit_message="${commit_message:0:$((MAX_COMMIT_MESSAGE_LENGTH - 3))}..."
+    fi
+
+    # Ollama-specific retry with a simpler prompt
+    if [[ -z "$commit_message" && "$PROVIDER" == "ollama" ]]; then
+        ui_info "Trying alternative prompt..."
+        local fallback_prompt
+        fallback_prompt=$(build_fallback_prompt "$diff_output" "$LANG" "$MAX_SIMPLE_MESSAGE_LENGTH")
+        if generate_commit_message "$fallback_prompt" "$MODEL"; then
+            commit_message=$(cleanup_message "$LAST_COMMIT_MESSAGE")
+        fi
+    fi
+
+    if [[ -z "$commit_message" ]]; then
+        ui_error "Failed to get commit message from $PROVIDER"
+        exit 1
+    fi
+
+    ui_arrow "Generated message: $commit_message"
+
+    if [[ "$DRY_RUN" == true ]]; then
+        ui_info "Dry-run: changes will not be committed or pushed."
+        exit 0
+    fi
+
+    git add -A
+    git commit -m "$commit_message"
+    git push
+
+    prepare_next_numeric_tag "$BUMP" || exit 1
+    git tag "$new_tag"
+    git push origin "$new_tag"
+    ui_ok "New tag created: $new_tag"
+    ui_ok "Commit and tag successfully created and pushed."
+}
+
+# --- Argument parsing -------------------------------------------------------
+
+# CLI_* sentinels track explicit flag values; config/env skip unset fields.
+parse_args() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --provider)            CLI_PROVIDER="$2"; PROVIDER="$2"; PROVIDER_OVERRIDE=true; shift 2 ;;
+            --model)               CLI_MODEL="$2"; MODEL="$2"; MODEL_OVERRIDE=true; shift 2 ;;
+            --api-key)             CLI_API_KEY="$2"; API_KEY="$2"; shift 2 ;;
+            --base-url)            CLI_BASE_URL="$2"; BASE_URL="$2"; shift 2 ;;
+            --bump)                CLI_BUMP="$2"; BUMP="$2"; shift 2 ;;
+            --lang)                CLI_LANG="$2"; LANG="$2"; shift 2 ;;
+            --max-length)          CLI_MAX_COMMIT_MESSAGE_LENGTH="$2"; MAX_COMMIT_MESSAGE_LENGTH="$2"; shift 2 ;;
+            --dry-run)             DRY_RUN=true; shift ;;
+            --tag)
+                TAG_ONLY=true
+                if [[ $# -gt 1 && ! "$2" =~ ^-- ]]; then
+                    BUMP="$2"; shift 2
+                else
+                    BUMP="patch"; shift
+                fi
+                ;;
+            --install)             AUTO_INSTALL=true; shift ;;
+            --uninstall)           uninstall_symlink; exit 0 ;;
+            --verbose)             GAIC_LOG_LEVEL=0; shift ;;
+            --quiet)               GAIC_LOG_LEVEL=2; shift ;;
+            -h|--help)             usage; exit 0 ;;
+            *)                     ui_error "Unknown argument: $1"; echo "Use --help for help"; exit 1 ;;
+        esac
+    done
+}
+
+# --- Entry point ------------------------------------------------------------
+
+main() {
+    parse_args "$@"
+    if [[ "$AUTO_INSTALL" == true ]]; then
+        install_symlink
+        exit 0
+    fi
+    resolve_config
+
+    if [[ "$TAG_ONLY" == true ]]; then
+        run_tag_only
+    fi
+
+    check_provider_ready
+    generate_and_commit
+}
+
+main "$@"
