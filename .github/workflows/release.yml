@@ -1,0 +1,32 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create GitHub release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract changelog for tag
+        id: changelog
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          awk "/^## \[${tag#v}\]/,/^## \[/" CHANGELOG.md \
+            | sed '$d' \
+            > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "No changelog entry found for $tag; using full CHANGELOG.md."
+            cp CHANGELOG.md release-notes.md
+          fi
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: release-notes.md
+          generate_release_notes: false

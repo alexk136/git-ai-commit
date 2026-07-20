@@ -89,8 +89,8 @@ _http_call() {
             -w "HTTP_STATUS:%{http_code}" \
             "$@" "$url" 2>/dev/null) || true
 
-        LAST_HTTP_STATUS=$(echo "$response" | grep -o "HTTP_STATUS:[0-9]*" | cut -d: -f2)
-        LAST_RESPONSE_BODY=$(echo "$response" | sed 's/HTTP_STATUS:[0-9]*$//')
+        LAST_HTTP_STATUS=$(grep -o "HTTP_STATUS:[0-9]*" <<<"$response" | cut -d: -f2)
+        LAST_RESPONSE_BODY="${response%HTTP_STATUS:*}"
 
         # Retry on transport errors or 5xx
         if [[ -z "$LAST_HTTP_STATUS" ]] \
@@ -209,6 +209,7 @@ _anthropic_request() {
 generate_commit_message() {
     local prompt="$1" model="$2"
     LAST_COMMIT_MESSAGE=""
+    # shellcheck disable=SC2153  # PROVIDER is set by bin/git-ai-commit
     case "$PROVIDER" in
         ollama)                    _ollama_request "$prompt" "$model" ;;
         openai|openrouter|minimax) _openai_compatible_request "$prompt" "$model" "$PROVIDER" ;;

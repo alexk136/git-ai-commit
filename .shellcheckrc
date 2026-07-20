@@ -1,0 +1,8 @@
+# shellcheck configuration: https://github.com/koalaman/shellcheck/blob/master/shellcheckrc
+
+# Use bash dialect.
+shell=bash
+
+# Allow the CLI_* sentinels in bin/git-ai-commit: they look unused to
+# shellcheck but are read by indirection (${!cli_var}).
+disable=SC2034

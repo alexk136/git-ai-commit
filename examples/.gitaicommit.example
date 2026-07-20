@@ -1,0 +1,37 @@
+# Sample per-repo config for git-ai-commit.
+# Drop this file at the root of a repository as `.gitaicommit`
+# (or symlink to a shared location).
+#
+# Precedence (highest → lowest):
+#   CLI flag > <PROVIDER>_MODEL / GAIC_MODEL env > this file > ~/.config/git-ai-commit/config > built-in defaults
+
+# LLM provider: ollama | openai | openrouter | anthropic | minimax
+# (Leave commented out to auto-detect from env API keys.)
+# PROVIDER=openai
+
+# Model name (provider-specific default is used if omitted)
+# MODEL=gpt-4o-mini
+
+# Custom API endpoint (e.g. for proxies, self-hosted gateways, regional mirrors)
+# BASE_URL=https://api.openai.com/v1
+
+# Inline API key (overrides <PROVIDER>_API_KEY env var)
+# API_KEY=sk-...
+
+# Version bump: patch (default) | minor | major
+# BUMP=patch
+
+# Commit message language: english (default) | russian
+# LANG=english
+
+# Max commit message length (default: 200; longer messages are truncated)
+# MAX_COMMIT_MESSAGE_LENGTH=200
+
+# Max length for the simpler fallback prompt used only by Ollama (default: 100)
+# MAX_SIMPLE_MESSAGE_LENGTH=100
+
+# HTTP timeout in seconds (default: 60)
+# CURL_TIMEOUT=60
+
+# Number of retries on 5xx / transport errors (default: 2)
+# CURL_RETRIES=2
