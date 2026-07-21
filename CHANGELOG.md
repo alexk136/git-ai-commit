@@ -18,6 +18,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New `ALWAYS_TAG` config key / env var (`0`/`1`/`true`/`false`) in
   `lib/config.sh` `CONFIG_KEYS`. Documented in `.env.example`,
   `examples/.gitaicommit.example`, and `README.md`.
+- `--install` now auto-detects the target directory: explicit
+  `--install-dir DIR` → `$HOMEBREW_PREFIX/bin` → `/usr/local/bin` →
+  `~/.local/bin`. New `--install-dir DIR` flag overrides the chain. Prints
+  a `PATH` hint if the chosen dir is not on `$PATH`. `--uninstall`
+  searches all candidate locations. Makefile `install` target also
+  auto-detects `BINDIR` the same way.
 
 ## [0.3.0] - 2025-XX-XX
 

@@ -81,11 +81,17 @@ cd git-ai-commit
 ./bin/git-ai-commit --install
 ```
 
-This creates a symlink `/usr/local/bin/git-commit` (or prints the exact
-`sudo` command if it can't write to `/usr/local/bin`). After that you can
-run `git-commit` from any directory.
+`--install` picks the first writable location from this priority list:
 
-To remove: `git-commit --uninstall`.
+1. `--install-dir DIR` (or `CLI_INSTALL_DIR`) if given
+2. `$HOMEBREW_PREFIX/bin` (macOS Apple Silicon → `/opt/homebrew/bin`,
+   Intel → `/usr/local/bin`)
+3. `/usr/local/bin` (traditional Linux + Intel macOS)
+4. `~/.local/bin` (no root needed)
+
+If the chosen directory is not on your `$PATH`, the script prints an
+`export PATH=…` hint. To remove: `git-commit --uninstall` (searches all
+candidate locations).
 
 ### Option 2: Manual symlink
 
@@ -149,7 +155,8 @@ git-commit [OPTIONS]
 | `--max-length N` | Max commit message length (default: 200) |
 | `--dry-run` | Print the generated message without committing or pushing |
 | `--verbose` / `--quiet` | Adjust log level |
-| `--install` / `--uninstall` | Symlink / unlink `/usr/local/bin/git-commit` |
+| `--install` / `--uninstall` | Symlink / unlink `git-commit` (auto-detects directory) |
+| `--install-dir DIR` | With `--install`, override target directory |
 | `--help` | Show help |
 
 ### Examples

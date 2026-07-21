@@ -35,6 +35,26 @@ teardown() {
     [[ "$output" == *"git-ai-commit"* ]]
 }
 
+@test "cli: --install --install-dir DIR places the symlink" {
+    dest="$TMP/bin"
+    mkdir -p "$dest"
+    run "$BIN" --install --install-dir "$dest"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Installed"* ]]
+    [ -L "$dest/git-commit" ]
+    [ "$(readlink "$dest/git-commit")" = "$BIN" ]
+}
+
+@test "cli: --install falls back to ~/.local/bin when no system dir is writable" {
+    fakehome="$TMP/fakehome"
+    mkdir -p "$fakehome"
+    # Strip PATH so ~/.local/bin isn't pre-existing on it.
+    run env -i HOME="$fakehome" PATH="/usr/bin:/bin" "$BIN" --install
+    [ "$status" -eq 0 ]
+    [ -L "$fakehome/.local/bin/git-commit" ]
+    [[ "$output" == *"~/.local/bin"* || "$output" == *".local/bin"* ]]
+}
+
 @test "cli: --tag patch --dry-run prints next version" {
     run "$BIN" --tag patch --dry-run
     [ "$status" -eq 0 ]

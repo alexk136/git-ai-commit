@@ -90,8 +90,9 @@ ${C_BOLD}OPTIONS${C_RESET}
                            (equivalent to ALWAYS_TAG=1 for this run; TYPE in
                            patch|minor|major, default: patch)
     --max-length N         Max commit message length (default: 200)
-    --install              Install as /usr/local/bin/git-commit (or print sudo cmd)
-    --uninstall            Remove /usr/local/bin/git-commit
+    --install              Install 'git-commit' symlink (auto-detects dir)
+    --install-dir DIR      With --install, override target directory
+    --uninstall            Remove 'git-commit' symlink (any location)
     --verbose              Enable debug logging
     --quiet                Suppress info messages
     -h, --help             Show this help
@@ -218,34 +219,96 @@ resolve_config() {
 # --- Install / uninstall ----------------------------------------------------
 
 install_symlink() {
-    local script_path target
-    script_path="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
-    target="/usr/local/bin/git-commit"
-    ui_step "Installing $target → $script_path"
-    if [[ -w /usr/local/bin ]]; then
-        ln -sf "$script_path" "$target"
-        ui_ok "Installed. Use 'git-commit' from any directory."
-    else
-        ui_warn "Need root to install into /usr/local/bin. Run:"
-        echo "    sudo ln -sf \"$script_path\" \"$target\""
-        echo
-        echo "Or add to ~/.bashrc:"
-        echo "    alias git-commit=\"$script_path\""
+    local script_path dir target candidate writable
+    script_path="$(_resolve_script_dir)/$(basename "${BASH_SOURCE[0]}")"
+    target="git-commit"
+
+    # Find the first candidate directory we can actually write to.
+    writable=""
+    while IFS= read -r dir; do
+        [[ -z "$dir" ]] && continue
+        if [[ -d "$dir" ]] && [[ -w "$dir" ]]; then
+            writable="$dir"
+            break
+        fi
+        if mkdir -p "$dir" 2>/dev/null && [[ -w "$dir" ]]; then
+            writable="$dir"
+            break
+        fi
+    done < <(_candidate_install_dirs)
+
+    if [[ -z "$writable" ]]; then
+        ui_error "Could not find a writable install directory."
+        ui_error "Pass --install-dir DIR or set HOMEBREW_PREFIX."
+        return 1
+    fi
+
+    ui_step "Installing $writable/$target → $script_path"
+    if ! ln -sf "$script_path" "$writable/$target" 2>/dev/null; then
+        ui_warn "ln failed; sudo command:"
+        echo "    sudo ln -sf \"$script_path\" \"$writable/$target\""
+        return 1
+    fi
+    ui_ok "Installed. Use 'git-commit' from any directory."
+
+    if ! _dir_on_path "$writable"; then
+        ui_warn "$writable is not on your PATH."
+        echo "    Add it by putting this in ~/.bashrc / ~/.zshrc:"
+        echo "    export PATH=\"$writable:\$PATH\""
     fi
 }
 
+# _candidate_install_dirs — echo candidate install directories, in priority order.
+_candidate_install_dirs() {
+    local dir
+    # 1. Explicit CLI / env override
+    if [[ -n "${CLI_INSTALL_DIR:-}" ]]; then
+        echo "$CLI_INSTALL_DIR"
+        return 0
+    fi
+    # 2. Homebrew prefix (Apple Silicon → /opt/homebrew; Intel → /usr/local)
+    if [[ -n "${HOMEBREW_PREFIX:-}" ]] && [[ -d "$HOMEBREW_PREFIX/bin" ]]; then
+        echo "$HOMEBREW_PREFIX/bin"
+    fi
+    # 3. System-wide /usr/local/bin (traditional Linux + Intel macOS)
+    if [[ -d /usr/local/bin ]]; then
+        echo /usr/local/bin
+    fi
+    # 4. XDG-style user dir (always writable, never needs root)
+    echo "$HOME/.local/bin"
+}
+
+# _dir_on_path <dir> — return 0 if <dir> is a colon-separated entry in $PATH.
+_dir_on_path() {
+    local dir="$1" IFS=':'
+    [[ ":$PATH:" == *":$dir:"* ]]
+}
+
 uninstall_symlink() {
-    local target="/usr/local/bin/git-commit"
-    if [[ -L "$target" ]]; then
-        if [[ -w /usr/local/bin ]]; then
-            rm "$target"
-            ui_ok "Removed $target"
-        else
-            ui_warn "Need root to remove $target. Run:"
-            echo "    sudo rm \"$target\""
+    local dir found
+    found=""
+    while IFS= read -r dir; do
+        [[ -z "$dir" ]] && continue
+        if [[ -L "$dir/git-commit" ]]; then
+            found="$dir/git-commit"
+            break
         fi
+    done < <(_candidate_install_dirs)
+
+    if [[ -z "$found" ]]; then
+        ui_info "No git-commit symlink found in any candidate location."
+        return 0
+    fi
+
+    local dir_of
+    dir_of="$(dirname -- "$found")"
+    if [[ -w "$dir_of" ]]; then
+        rm "$found"
+        ui_ok "Removed $found"
     else
-        ui_info "No symlink at $target — nothing to remove."
+        ui_warn "Need root to remove $found. Run:"
+        echo "    sudo rm \"$found\""
+        return 1
     fi
 }
 
@@ -471,6 +534,7 @@ parse_args() {
                 fi
                 ;;
             --install)             AUTO_INSTALL=true; shift ;;
+            --install-dir)         CLI_INSTALL_DIR="$2"; shift 2 ;;
             --uninstall)           uninstall_symlink; exit 0 ;;
             --verbose)             GAIC_LOG_LEVEL=0; shift ;;
             --quiet)               GAIC_LOG_LEVEL=2; shift ;;

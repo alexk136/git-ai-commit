@@ -4,6 +4,20 @@ LIB         := $(wildcard lib/*.sh)
 TESTS       := $(wildcard tests/bats/*.bats)
 PREFIX      ?= /usr/local
 BINDIR      ?= $(PREFIX)/bin
+# Auto-detect BINDIR when at its default value: prefer $HOMEBREW_PREFIX/bin
+# on macOS, fall back to $HOME/.local/bin if /usr/local/bin is not writable.
+# Match any non-explicit origin so an explicit override still wins.
+ifeq ($(filter $(origin BINDIR),undefined default file),)
+else
+BINDIR := $(shell \
+  if [ -n "$$HOMEBREW_PREFIX" ] && [ -d "$$HOMEBREW_PREFIX/bin" ]; then \
+    echo "$$HOMEBREW_PREFIX/bin"; \
+  elif [ -w "$(PREFIX)/bin" ]; then \
+    echo "$(PREFIX)/bin"; \
+  else \
+    echo "$$HOME/.local/bin"; \
+  fi)
+endif
 
 .PHONY: help install uninstall test lint smoke clean
 
@@ -17,7 +31,7 @@ help:
 	@echo "  clean      Remove generated files"
 
 install:
-	@install -d $(BINDIR)
+	@mkdir -p $(BINDIR)
 	@ln -sf $$(pwd)/$(BIN) $(BINDIR)/git-commit
 	@echo "Installed: $(BINDIR)/git-commit → $$(pwd)/$(BIN)"
 
@@ -45,3 +59,4 @@ clean:
 	@find . -name '__pycache__' -prune -exec rm -rf {} +
 	@find . -name '*.pyc' -delete
 	@rm -rf .pytest_cache .ruff_cache htmlcov .coverage
+$(info BINDIR origin: $(origin BINDIR))
