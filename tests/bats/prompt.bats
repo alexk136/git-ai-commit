@@ -23,14 +23,14 @@ setup() {
     [[ "$output" == *"+new"* ]]
 }
 
-@test "prompt: build_prompt russian uses russian instructions" {
+@test "prompt: build_prompt --lang russian is a no-op (no RU template)" {
     local diff="diff --git a/x.txt b/x.txt
 +new"
     run build_prompt "$diff" "russian" 500
     [ "$status" -eq 0 ]
-    [[ "$output" == *"русском"* ]]
-    [[ "$output" == *"500 символов"* ]]
-    [[ "$output" == *"diff --git"* ]]
+    # Russian branch was removed; --lang russian now uses the English template.
+    [[ "$output" == *"English"* ]]
+    [[ "$output" != *"русском"* ]]
 }
 
 @test "prompt: build_prompt sends the full diff, not just file headers" {
@@ -49,16 +49,16 @@ index 1111..2222 100644
     [[ "$output" == *"inserted in the middle"* ]]
 }
 
-@test "prompt: PROMPT_TEMPLATE_EN overrides the english template" {
+@test "prompt: PROMPT_TEMPLATE overrides the default template" {
     local diff="diff --git a/x.txt b/x.txt
 +new"
-    PROMPT_TEMPLATE_EN='Custom %s chars EN: %s.' run build_prompt "$diff" "english" 42
+    PROMPT_TEMPLATE='Custom %s chars: %s.' run build_prompt "$diff" "english" 42
     [ "$status" -eq 0 ]
     # Full diff is passed verbatim (newline between header and hunk preserved).
-    [ "$output" = $'Custom 42 chars EN: diff --git a/x.txt b/x.txt\n+new.' ]
+    [ "$output" = $'Custom 42 chars: diff --git a/x.txt b/x.txt\n+new.' ]
 }
 
-@test "prompt: build_fallback_prompt english" {
+@test "prompt: build_fallback_prompt uses PROMPT_FALLBACK_TEMPLATE" {
     local diff="diff --git a/x.txt b/x.txt
 +new content"
     run build_fallback_prompt "$diff" "english" 1000
@@ -67,11 +67,13 @@ index 1111..2222 100644
     [[ "$output" == *"diff --git"* ]]
 }
 
-@test "prompt: build_fallback_prompt russian" {
+@test "prompt: build_fallback_prompt --lang russian is a no-op" {
     local diff="+new content"
     run build_fallback_prompt "$diff" "russian" 1000
     [ "$status" -eq 0 ]
-    [[ "$output" == *"до 1000 символов"* ]]
+    # Russian branch removed; --lang russian uses the English fallback template.
+    [[ "$output" == *"under 1000 chars"* ]]
+    [[ "$output" != *"до "* ]]
 }
 
 @test "prompt: cleanup_message strips 'Here is a...:' prefix" {

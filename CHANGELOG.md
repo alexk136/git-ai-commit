@@ -41,13 +41,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `file_summary` (paths + `+++`/`---`) and had to guess the message —
   fine for one-line changes, useless for anything structural. The full
   diff gives it enough context to write meaningful messages. Updated
-  default `PROMPT_TEMPLATE_EN` / `PROMPT_TEMPLATE_RU` wording to
-  match.
+  default `PROMPT_TEMPLATE` wording to match.
 - Default `MAX_COMMIT_MESSAGE_LENGTH` raised `200` → `500`,
   `MAX_SIMPLE_MESSAGE_LENGTH` raised `100` → `1000`. Longer messages
   produced by the LLM are still truncated to the cap before commit.
 - Dropped dead code (`files_changed` count in `build_prompt` was
   computed but never used).
+- Removed per-language prompt templates: `PROMPT_TEMPLATE_EN` →
+  `PROMPT_TEMPLATE`, `PROMPT_FALLBACK_TEMPLATE_EN` →
+  `PROMPT_FALLBACK_TEMPLATE`. Drop `PROMPT_TEMPLATE_RU` and
+  `PROMPT_FALLBACK_TEMPLATE_RU` entirely — the Russian variants are no
+  longer shipped. `--lang russian` is now a no-op (still accepted so
+  existing configs don't break, but the request is built from the
+  unified English template).
 
 ## [0.3.0] - 2025-XX-XX
 

@@ -164,7 +164,7 @@ git-commit [OPTIONS]
 | `--base-url URL` | Override the provider's base URL (proxies, self-hosted gateways, etc.) |
 | `--bump TYPE` | Version bump: `patch` (default), `minor`, or `major` |
 | `--tag [TYPE]` | Also bump and push the next semver tag after commit (equivalent to `ALWAYS_TAG=1` for this run; TYPE in `patch`/`minor`/`major`, default: `patch`) |
-| `--lang LANG` | Commit message language: `english` (default) or `russian` |
+| `--lang LANG` | Currently a no-op; only `english` is honoured. Kept for config compatibility |
 | `--max-length N` | Max commit message length (default: 500) |
 | `--dry-run` | Print the generated message without committing or pushing |
 | `--verbose` / `--quiet` | Adjust log level |
@@ -207,9 +207,6 @@ git-commit --dry-run
 
 # Preview the tag bump without making a commit
 git-commit --tag --dry-run
-
-# Russian commit messages
-git-commit --lang russian
 
 # Major version bump
 git-commit --tag major
@@ -264,10 +261,8 @@ full sample.
 | `CURL_RETRY_BACKOFF` | `2` | Multiplier applied to the retry delay after each attempt |
 | `OLLAMA_PROBE_CONNECT_TIMEOUT` | `1` | Ollama reachability probe — connect timeout (seconds) |
 | `OLLAMA_PROBE_TIMEOUT` | `2` | Ollama reachability probe — total timeout (seconds) |
-| `PROMPT_TEMPLATE_EN` | (English) | LLM prompt for `build_prompt`. Two `%s` placeholders: max length, full diff |
-| `PROMPT_TEMPLATE_RU` | (Russian) | LLM prompt for `build_prompt` when `LANG=russian` |
-| `PROMPT_FALLBACK_TEMPLATE_EN` | (English) | LLM prompt for `build_fallback_prompt` |
-| `PROMPT_FALLBACK_TEMPLATE_RU` | (Russian) | Russian fallback prompt |
+| `PROMPT_TEMPLATE` | (English) | LLM prompt for `build_prompt`. Two `%s` placeholders: max length, full diff |
+| `PROMPT_FALLBACK_TEMPLATE` | (English) | LLM prompt for `build_fallback_prompt` |
 | `SEMVER_TAG_PATTERN` | `^v[0-9]+\.[0-9]+\.[0-9]+$` | Regex for matching semver tags |
 
 ### Environment variables

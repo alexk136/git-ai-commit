@@ -54,10 +54,8 @@
 # OLLAMA_PROBE_TIMEOUT=2
 
 # LLM prompt templates. Two %s placeholders: max length, full diff.
-# PROMPT_TEMPLATE_EN='Generate only a commit message (max %s chars) in English for the following diff: %s. Reply with only the message, no extra text.'
-# PROMPT_TEMPLATE_RU='Сгенерируй только сообщение коммита (максимум %s символов) на русском языке для следующего diff: %s. Ответь только сообщением без дополнительного текста.'
-# PROMPT_FALLBACK_TEMPLATE_EN='Only commit message (under %s chars): %s'
-# PROMPT_FALLBACK_TEMPLATE_RU='Только сообщение коммита (до %s символов): %s'
+# PROMPT_TEMPLATE='Generate only a commit message (max %s chars) in English for the following diff: %s. Reply with only the message, no extra text.'
+# PROMPT_FALLBACK_TEMPLATE='Only commit message (under %s chars): %s'
 
 # Semver regex used when computing the next tag (default ^v\d+\.\d+\.\d+$).
 # SEMVER_TAG_PATTERN='^v[0-9]+\.[0-9]+\.[0-9]+$'
