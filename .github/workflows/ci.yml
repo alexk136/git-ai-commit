@@ -12,25 +12,48 @@ permissions:
 jobs:
   lint:
     name: Shellcheck
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, macos-13]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - name: Install shellcheck
-        run: sudo apt-get update && sudo apt-get install -y shellcheck
+        run: |
+          if command -v apt-get >/dev/null 2>&1; then
+            sudo apt-get update && sudo apt-get install -y shellcheck
+          elif command -v brew >/dev/null 2>&1; then
+            brew install shellcheck
+          else
+            echo "::error::no supported package manager found"
+            exit 1
+          fi
       - name: Run shellcheck
         run: shellcheck -x bin/git-ai-commit lib/*.sh tests/bats/helpers/*.bash
 
   test:
     name: Bats tests
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, macos-13]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y shellcheck jq git
-          git clone --depth 1 https://github.com/bats-core/bats-core.git
-          sudo bats-core/install.sh /usr/local
+          if command -v apt-get >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y shellcheck jq git
+            git clone --depth 1 https://github.com/bats-core/bats-core.git
+            sudo bats-core/install.sh /usr/local
+          elif command -v brew >/dev/null 2>&1; then
+            brew install jq git bats-core shellcheck
+          else
+            echo "::error::no supported package manager found"
+            exit 1
+          fi
       - name: Run bats
         env:
           NO_COLOR: "1"
@@ -38,7 +61,11 @@ jobs:
 
   smoke:
     name: Smoke (--help, --install dry-run)
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, macos-13]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - name: --help exits 0
