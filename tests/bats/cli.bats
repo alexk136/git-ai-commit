@@ -27,6 +27,14 @@ teardown() {
     [[ "$output" == *"openrouter"* ]]
 }
 
+@test "cli: works when invoked through a symlink (portable resolver)" {
+    link="$TMP/git-commit-link"
+    ln -s "$BIN" "$link"
+    run "$link" --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"git-ai-commit"* ]]
+}
+
 @test "cli: --tag patch --dry-run prints next version" {
     run "$BIN" --tag patch --dry-run
     [ "$status" -eq 0 ]
