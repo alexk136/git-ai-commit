@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Tagging is now **opt-in**. `git-ai-commit` (no flag) commits and pushes
+  without creating a tag. Pass `--tag` to bump and push the next semver tag
+  on a single run, or set `ALWAYS_TAG=1` (env or `.gitaicommit`) to make
+  every commit tag. The previous "tag-only mode" (`--tag` without a
+  commit) is removed.
+
+### Added
+- New `ALWAYS_TAG` config key / env var (`0`/`1`/`true`/`false`) in
+  `lib/config.sh` `CONFIG_KEYS`. Documented in `.env.example`,
+  `examples/.gitaicommit.example`, and `README.md`.
+
 ## [0.3.0] - 2025-XX-XX
 
 ### Added

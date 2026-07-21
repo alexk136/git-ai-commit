@@ -50,6 +50,33 @@ teardown() {
     [ "$status" -ne 0 ]
 }
 
+@test "cli: ALWAYS_TAG=0 by default — --tag --dry-run without ALWAYS_TAG shows tag preview" {
+    run env -u ALWAYS_TAG "$BIN" --tag patch --dry-run
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"v0.1.1"* ]]
+}
+
+@test "cli: ALWAYS_TAG=1 invalid value is rejected" {
+    run env ALWAYS_TAG=maybe "$BIN" --tag patch --dry-run
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"ALWAYS_TAG"* ]]
+}
+
+@test "cli: ALWAYS_TAG=true is accepted as truthy" {
+    run env ALWAYS_TAG=true "$BIN" --tag patch --dry-run
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"v0.1.1"* ]]
+}
+
+@test "cli: per-repo .gitaicommit ALWAYS_TAG=1 is loaded" {
+    cat > .gitaicommit <<EOF
+ALWAYS_TAG=1
+EOF
+    run env -u ALWAYS_TAG "$BIN" --tag patch --dry-run
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"v0.1.1"* ]]
+}
+
 @test "cli: unknown option is rejected" {
     run "$BIN" --no-such-flag
     [ "$status" -ne 0 ]

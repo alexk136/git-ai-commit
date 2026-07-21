@@ -7,7 +7,8 @@ set -eo pipefail
 
 # --- Resolve script directory and source libs ------------------------------
 
-GAIC_LIB_DIR="${GAIC_LIB_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../lib" && pwd)}"
+GAIC_SELF="$(readlink -f "${BASH_SOURCE[0]}")"
+GAIC_LIB_DIR="${GAIC_LIB_DIR:-$(cd "$(dirname "$GAIC_SELF")/../lib" && pwd)}"
 
 # shellcheck source=lib/ui.sh
 source "$GAIC_LIB_DIR/ui.sh"
@@ -28,6 +29,7 @@ DEFAULT_PROVIDER="ollama"
 DEFAULT_MODEL="mistral-nemo:latest"
 DEFAULT_BUMP="patch"
 DEFAULT_LANG="english"
+DEFAULT_ALWAYS_TAG=0
 DEFAULT_MAX_COMMIT_MESSAGE_LENGTH=200
 DEFAULT_MAX_SIMPLE_MESSAGE_LENGTH=100
 DEFAULT_CURL_TIMEOUT=60
@@ -49,7 +51,7 @@ CURL_TIMEOUT=""
 CURL_CONN_TIMEOUT=""
 CURL_RETRIES=""
 DRY_RUN=false
-TAG_ONLY=false
+TAG=false
 AUTO_INSTALL=false
 
 # --- Usage ------------------------------------------------------------------
@@ -73,7 +75,9 @@ ${C_BOLD}OPTIONS${C_RESET}
     --bump TYPE            Version bump: patch|minor|major (default: patch)
     --dry-run              Print generated message, do not commit or push
     --lang LANG            Commit message language: english|russian (default: english)
-    --tag [TYPE]           Tag-only mode: bump and push the next semver tag
+    --tag [TYPE]           Also bump and push the next semver tag after commit
+                           (equivalent to ALWAYS_TAG=1 for this run; TYPE in
+                           patch|minor|major, default: patch)
     --max-length N         Max commit message length (default: 200)
     --install              Install as /usr/local/bin/git-commit (or print sudo cmd)
     --uninstall            Remove /usr/local/bin/git-commit
@@ -94,7 +98,7 @@ ${C_BOLD}CONFIGURATION${C_RESET}
                 (defaults to ~/.config/git-ai-commit/config)
 
     Recognized keys: PROVIDER, MODEL, BASE_URL, API_KEY, BUMP, LANG,
-                     MAX_COMMIT_MESSAGE_LENGTH, MAX_SIMPLE_MESSAGE_LENGTH,
+                     ALWAYS_TAG, MAX_COMMIT_MESSAGE_LENGTH, MAX_SIMPLE_MESSAGE_LENGTH,
                      CURL_TIMEOUT, CURL_RETRIES
 
     See examples/.gitaicommit.example for a sample.
@@ -108,8 +112,9 @@ ${C_BOLD}EXAMPLES${C_RESET}
                  --model x-ai/grok-4
     git-ai-commit --provider anthropic \\
                  --model claude-sonnet-4-5
-    git-ai-commit --tag                          ${C_DIM}# bump patch and push tag${C_RESET}
+    git-ai-commit --tag                          ${C_DIM}# commit and bump patch tag${C_RESET}
     git-ai-commit --tag minor --dry-run
+    ALWAYS_TAG=1 git-ai-commit                 ${C_DIM}# commit + tag by default${C_RESET}
     git-ai-commit --install                      ${C_DIM}# install as 'git-commit'${C_RESET}
 EOF
 }
@@ -130,6 +135,7 @@ resolve_config() {
     apply_default MODEL "$DEFAULT_MODEL"
     apply_default BUMP "$DEFAULT_BUMP"
     apply_default LANG "$DEFAULT_LANG"
+    apply_default ALWAYS_TAG "$DEFAULT_ALWAYS_TAG"
     apply_default MAX_COMMIT_MESSAGE_LENGTH "$DEFAULT_MAX_COMMIT_MESSAGE_LENGTH"
     apply_default MAX_SIMPLE_MESSAGE_LENGTH "$DEFAULT_MAX_SIMPLE_MESSAGE_LENGTH"
     apply_default CURL_TIMEOUT "$DEFAULT_CURL_TIMEOUT"
@@ -138,6 +144,7 @@ resolve_config() {
 
     # Per-repo + global config files
     GAIC_REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || true)
+    load_dotenv
     config_discover_files
     for key in "${CONFIG_KEYS[@]}"; do
         local value cli_var
@@ -191,6 +198,7 @@ resolve_config() {
     # Validate
     config_validate PROVIDER "$PROVIDER" || exit 1
     config_validate BUMP "$BUMP" || exit 1
+    config_validate ALWAYS_TAG "$ALWAYS_TAG" || exit 1
     for key in MAX_COMMIT_MESSAGE_LENGTH MAX_SIMPLE_MESSAGE_LENGTH CURL_TIMEOUT CURL_RETRIES; do
         config_validate "$key" "${!key}" || exit 1
     done
@@ -268,8 +276,8 @@ check_provider_ready() {
     case "$PROVIDER" in
         ollama)
             if ! curl --silent --connect-timeout 1 --max-time 2 "$BASE_URL" >/dev/null 2>&1; then
-                ui_warn "Ollama server не запущен по адресу $BASE_URL."
-                ui_info "Режим: только отправка на сервер и поднятие версии (без коммита)."
+                ui_warn "Ollama server is not running at $BASE_URL."
+                ui_info "Mode: push only (no LLM-generated commit message)."
 
                 if ! require_clean_working_tree; then
                     exit 1
@@ -278,22 +286,26 @@ check_provider_ready() {
                 local unpushed
                 unpushed=$(unpushed_commits || true)
                 if [[ -z "$unpushed" ]]; then
-                    ui_info "Нет изменений для отправки."
+                    ui_info "Nothing to push."
                     exit 0
                 fi
 
-                ui_step "Найдены неподтверждённые коммиты. Только push и тег..."
+                ui_step "Unpushed commits found. Pushing..."
                 git push
 
-                prepare_next_numeric_tag "$BUMP" || exit 1
-                if [[ "$DRY_RUN" == true ]]; then
-                    ui_arrow "Dry-run: будет создан тег: $new_tag"
-                    exit 0
+                if [[ "$TAG" == true ]] || is_truthy "$ALWAYS_TAG"; then
+                    prepare_next_numeric_tag "$BUMP" || exit 1
+                    if [[ "$DRY_RUN" == true ]]; then
+                        ui_arrow "Dry-run: would create tag: $new_tag"
+                        exit 0
+                    fi
+                    git tag "$new_tag"
+                    git push origin "$new_tag"
+                    ui_ok "New tag created: $new_tag"
+                else
+                    ui_info "Tag skipped (use --tag or ALWAYS_TAG=1 to enable)."
                 fi
-                git tag "$new_tag"
-                git push origin "$new_tag"
-                ui_ok "Новый тег создан: $new_tag"
-                ui_ok "Коммиты отправлены и тег успешно создан."
+                ui_ok "Commits pushed."
                 exit 0
             fi
 
@@ -315,19 +327,12 @@ check_provider_ready() {
     esac
 }
 
-# --- Tag-only mode ----------------------------------------------------------
-
-run_tag_only() {
-    ui_step "Working with tags only..."
-    prepare_next_numeric_tag "$BUMP" || exit 1
-    if [[ "$DRY_RUN" == true ]]; then
-        ui_arrow "Dry-run: new tag will be: $new_tag"
-        exit 0
-    fi
-    git tag "$new_tag"
-    git push origin "$new_tag"
-    ui_ok "New tag created: $new_tag"
-    exit 0
+# is_truthy <value> — accept 1/true/yes/on (case-insensitive) as true.
+is_truthy() {
+    case "${1,,}" in
+        1|true|yes|on) return 0 ;;
+        *) return 1 ;;
+    esac
 }
 
 # --- Push-only fallback when there are no local changes -------------------
@@ -344,17 +349,26 @@ run_push_only() {
         ui_info "No changes to commit"
         exit 0
     fi
-    ui_info "Found unpushed commits. Creating tag only..."
+    ui_step "Found unpushed commits. Pushing..."
     echo "$unpushed"
     git push
-    prepare_next_numeric_tag "$BUMP" || exit 1
-    if [[ "$DRY_RUN" == true ]]; then
-        ui_arrow "Dry-run: would push commits and create tag: $new_tag"
-        exit 0
+
+    if [[ "$TAG" == true ]] || is_truthy "$ALWAYS_TAG"; then
+        prepare_next_numeric_tag "$BUMP" || exit 1
+        if [[ "$DRY_RUN" == true ]]; then
+            ui_arrow "Dry-run: would push commits and create tag: $new_tag"
+            exit 0
+        fi
+        git tag "$new_tag"
+        git push origin "$new_tag"
+        ui_ok "Commits pushed and tag successfully created."
+    else
+        if [[ "$DRY_RUN" == true ]]; then
+            ui_info "Dry-run: no tag would be created (use --tag or ALWAYS_TAG=1)."
+        else
+            ui_info "Tag skipped (use --tag or ALWAYS_TAG=1 to enable)."
+        fi
     fi
-    git tag "$new_tag"
-    git push origin "$new_tag"
-    ui_ok "Commits pushed and tag successfully created."
     exit 0
 }
 
@@ -408,11 +422,19 @@ generate_and_commit() {
     git commit -m "$commit_message"
     git push
 
-    prepare_next_numeric_tag "$BUMP" || exit 1
-    git tag "$new_tag"
-    git push origin "$new_tag"
-    ui_ok "New tag created: $new_tag"
-    ui_ok "Commit and tag successfully created and pushed."
+    if [[ "$TAG" == true ]] || is_truthy "$ALWAYS_TAG"; then
+        prepare_next_numeric_tag "$BUMP" || exit 1
+        if [[ "$DRY_RUN" == true ]]; then
+            ui_arrow "Dry-run: would create tag: $new_tag"
+        else
+            git tag "$new_tag"
+            git push origin "$new_tag"
+            ui_ok "New tag created: $new_tag"
+            ui_ok "Commit and tag successfully created and pushed."
+        fi
+    else
+        ui_info "Tag skipped (use --tag or ALWAYS_TAG=1 to enable)."
+    fi
 }
 
 # --- Argument parsing -------------------------------------------------------
@@ -430,11 +452,11 @@ parse_args() {
             --max-length)          CLI_MAX_COMMIT_MESSAGE_LENGTH="$2"; MAX_COMMIT_MESSAGE_LENGTH="$2"; shift 2 ;;
             --dry-run)             DRY_RUN=true; shift ;;
             --tag)
-                TAG_ONLY=true
+                TAG=true
                 if [[ $# -gt 1 && ! "$2" =~ ^-- ]]; then
-                    BUMP="$2"; shift 2
+                    CLI_BUMP="$2"; BUMP="$2"; shift 2
                 else
-                    BUMP="patch"; shift
+                    shift
                 fi
                 ;;
             --install)             AUTO_INSTALL=true; shift ;;
@@ -457,8 +479,11 @@ main() {
     fi
     resolve_config
 
-    if [[ "$TAG_ONLY" == true ]]; then
-        run_tag_only
+    # Fast path: --dry-run --tag → preview only the tag (no LLM needed).
+    if [[ "$DRY_RUN" == true && "$TAG" == true ]]; then
+        prepare_next_numeric_tag "$BUMP" || exit 1
+        ui_arrow "Dry-run: would create tag: $new_tag"
+        exit 0
     fi
 
     check_provider_ready

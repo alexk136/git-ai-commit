@@ -21,6 +21,10 @@
 # Version bump: patch (default) | minor | major
 # BUMP=patch
 
+# Always bump and push a semver tag after every commit (0|1, default: 0).
+# Equivalent to passing --tag on every invocation, but settable per-repo.
+# ALWAYS_TAG=0
+
 # Commit message language: english (default) | russian
 # LANG=english
 
