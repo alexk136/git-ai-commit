@@ -7,7 +7,7 @@ if [[ -n "${__GAIC_TAGS_LOADED:-}" ]]; then
 fi
 __GAIC_TAGS_LOADED=1
 
-SEMVER_TAG_PATTERN='^v[0-9]+\.[0-9]+\.[0-9]+$'
+SEMVER_TAG_PATTERN="${SEMVER_TAG_PATTERN:-^v[0-9]+\.[0-9]+\.[0-9]+$}"
 
 get_latest_numeric_tag() {
     git tag --sort=-v:refname 2>/dev/null \

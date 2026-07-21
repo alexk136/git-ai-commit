@@ -23,13 +23,14 @@ build_prompt() {
         | grep -E '^(diff --git|New file:|\+\+\+|---)' \
         | head -10 | tr '\n' ' ')
 
+    local tmpl
     if [[ "$lang" == "russian" ]]; then
-        printf 'Сгенерируй только сообщение коммита (максимум %s символов) на русском языке для изменений в файлах: %s. Ответь только сообщением без дополнительного текста.' \
-            "$max_len" "$file_summary"
+        tmpl="${PROMPT_TEMPLATE_RU:-Сгенерируй только сообщение коммита (максимум %s символов) на русском языке для изменений в файлах: %s. Ответь только сообщением без дополнительного текста.}"
     else
-        printf 'Generate only a commit message (max %s chars) in English for file changes: %s. Reply with only the message, no extra text.' \
-            "$max_len" "$file_summary"
+        tmpl="${PROMPT_TEMPLATE_EN:-Generate only a commit message (max %s chars) in English for file changes: %s. Reply with only the message, no extra text.}"
     fi
+    # shellcheck disable=SC2059  # tmpl is operator-provided; literal defaults are safe
+    printf "$tmpl" "$max_len" "$file_summary"
 }
 
 # build_fallback_prompt <diff_text> <language> <max_length>
@@ -39,11 +40,14 @@ build_fallback_prompt() {
     local simple_diff
     simple_diff=$(printf '%s\n' "$diff" | head -3 | tr -cd '[:alnum:][:space:]._-' | tr '\n' ' ')
 
+    local tmpl
     if [[ "$lang" == "russian" ]]; then
-        printf 'Только сообщение коммита (до %s символов): %s' "$max_len" "$simple_diff"
+        tmpl="${PROMPT_FALLBACK_TEMPLATE_RU:-Только сообщение коммита (до %s символов): %s}"
     else
-        printf 'Only commit message (under %s chars): %s' "$max_len" "$simple_diff"
+        tmpl="${PROMPT_FALLBACK_TEMPLATE_EN:-Only commit message (under %s chars): %s}"
     fi
+    # shellcheck disable=SC2059  # tmpl is operator-provided; literal defaults are safe
+    printf "$tmpl" "$max_len" "$simple_diff"
 }
 
 # cleanup_message <raw_message>

@@ -211,7 +211,7 @@ resolve_config() {
     config_validate PROVIDER "$PROVIDER" || exit 1
     config_validate BUMP "$BUMP" || exit 1
     config_validate ALWAYS_TAG "$ALWAYS_TAG" || exit 1
-    for key in MAX_COMMIT_MESSAGE_LENGTH MAX_SIMPLE_MESSAGE_LENGTH CURL_TIMEOUT CURL_RETRIES; do
+    for key in MAX_COMMIT_MESSAGE_LENGTH MAX_SIMPLE_MESSAGE_LENGTH CURL_TIMEOUT CURL_CONN_TIMEOUT CURL_RETRIES; do
         config_validate "$key" "${!key}" || exit 1
     done
 }
@@ -349,7 +349,7 @@ collect_diff() {
 check_provider_ready() {
     case "$PROVIDER" in
         ollama)
-            if ! curl --silent --connect-timeout 1 --max-time 2 "$BASE_URL" >/dev/null 2>&1; then
+            if ! curl --silent --connect-timeout "${OLLAMA_PROBE_CONNECT_TIMEOUT:-1}" --max-time "${OLLAMA_PROBE_TIMEOUT:-2}" "$BASE_URL" >/dev/null 2>&1; then
                 ui_warn "Ollama server is not running at $BASE_URL."
                 ui_info "Mode: push only (no LLM-generated commit message)."
 

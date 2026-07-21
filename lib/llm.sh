@@ -78,7 +78,7 @@ _http_call() {
     local url="$1"; shift
     local attempt max_attempts delay
     max_attempts="${CURL_RETRIES:-2}"
-    delay=1
+    delay="${CURL_RETRY_DELAY:-1}"
 
     for ((attempt = 1; attempt <= max_attempts; attempt++)); do
         local response
@@ -98,7 +98,7 @@ _http_call() {
             if [[ "$attempt" -lt "$max_attempts" ]]; then
                 ui_debug "Retry $((attempt + 1))/$max_attempts after ${delay}s..."
                 sleep "$delay"
-                delay=$((delay * 2))
+                delay=$(( delay * ${CURL_RETRY_BACKOFF:-2} ))
                 continue
             fi
         fi

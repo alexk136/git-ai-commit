@@ -29,6 +29,14 @@ setup() {
     [[ "$output" == *"200 символов"* ]]
 }
 
+@test "prompt: PROMPT_TEMPLATE_EN overrides the english template" {
+    local diff="diff --git a/x.txt b/x.txt
++new"
+    PROMPT_TEMPLATE_EN='Custom %s chars EN: %s.' run build_prompt "$diff" "english" 42
+    [ "$status" -eq 0 ]
+    [ "$output" = "Custom 42 chars EN: diff --git a/x.txt b/x.txt +new ." ]
+}
+
 @test "prompt: build_fallback_prompt english" {
     local diff="diff --git a/x.txt b/x.txt
 +new content"

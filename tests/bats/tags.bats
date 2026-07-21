@@ -27,6 +27,18 @@ setup() {
     [ "$output" = "v1.2.3" ]
 }
 
+@test "tags: SEMVER_TAG_PATTERN overrides the default regex" {
+    cd "$(mktemp -d)"
+    git init -q -b main
+    git config user.email t@t && git config user.name t
+    echo a > a && git add a && git commit -qm c
+    git tag 1.2.3         # matches the custom pattern below
+    git tag v1.2.3        # ignored by the custom pattern
+    SEMVER_TAG_PATTERN='^[0-9]+\.[0-9]+\.[0-9]+$' run get_latest_numeric_tag
+    [ "$status" -eq 0 ]
+    [ "$output" = "1.2.3" ]
+}
+
 @test "tags: prepare_next_numeric_tag starts at 0.1.0 with no prior tag" {
     cd "$(mktemp -d)"
     git init -q -b main

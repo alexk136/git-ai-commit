@@ -39,3 +39,25 @@
 
 # Number of retries on 5xx / transport errors (default: 2)
 # CURL_RETRIES=2
+
+# Initial retry delay in seconds (default: 1)
+# CURL_RETRY_DELAY=1
+
+# Multiplier applied to the retry delay after each attempt (default: 2)
+# CURL_RETRY_BACKOFF=2
+
+# TCP connect timeout in seconds (default: 5)
+# CURL_CONN_TIMEOUT=5
+
+# Ollama reachability probe (seconds). Used to decide push-only fallback.
+# OLLAMA_PROBE_CONNECT_TIMEOUT=1
+# OLLAMA_PROBE_TIMEOUT=2
+
+# LLM prompt templates. Two %s placeholders: max length, file summary.
+# PROMPT_TEMPLATE_EN='Generate only a commit message (max %s chars) in English for file changes: %s. Reply with only the message, no extra text.'
+# PROMPT_TEMPLATE_RU='Сгенерируй только сообщение коммита (максимум %s символов) на русском языке для изменений в файлах: %s. Ответь только сообщением без дополнительного текста.'
+# PROMPT_FALLBACK_TEMPLATE_EN='Only commit message (under %s chars): %s'
+# PROMPT_FALLBACK_TEMPLATE_RU='Только сообщение коммита (до %s символов): %s'
+
+# Semver regex used when computing the next tag (default ^v\d+\.\d+\.\d+$).
+# SEMVER_TAG_PATTERN='^v[0-9]+\.[0-9]+\.[0-9]+$'

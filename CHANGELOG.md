@@ -29,6 +29,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fallback strings in `bin/git-ai-commit` are now English. Russian
   prompt templates in `lib/prompt.sh` are kept (intentional — they
   steer the LLM when `LANG=russian`).
+- New env vars surface previously hardcoded settings through `.env` /
+  `.gitaicommit`: `CURL_CONN_TIMEOUT`, `CURL_RETRY_DELAY`,
+  `CURL_RETRY_BACKOFF`, `OLLAMA_PROBE_CONNECT_TIMEOUT`,
+  `OLLAMA_PROBE_TIMEOUT`, `PROMPT_TEMPLATE_EN`, `PROMPT_TEMPLATE_RU`,
+  `PROMPT_FALLBACK_TEMPLATE_EN`, `PROMPT_FALLBACK_TEMPLATE_RU`,
+  `SEMVER_TAG_PATTERN`. `CURL_CONN_TIMEOUT` is now part of
+  `CONFIG_KEYS` so it loads from per-repo config.
 
 ## [0.3.0] - 2025-XX-XX
 
