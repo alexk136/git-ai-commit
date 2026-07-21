@@ -24,6 +24,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a `PATH` hint if the chosen dir is not on `$PATH`. `--uninstall`
   searches all candidate locations. Makefile `install` target also
   auto-detects `BINDIR` the same way.
+- Translate remaining Russian UI strings: `lib/git.sh`'s
+  `require_clean_working_tree` error message and the Ollama-down
+  fallback strings in `bin/git-ai-commit` are now English. Russian
+  prompt templates in `lib/prompt.sh` are kept (intentional — they
+  steer the LLM when `LANG=russian`).
 
 ## [0.3.0] - 2025-XX-XX
 

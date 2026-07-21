@@ -8,11 +8,10 @@ fi
 __GAIC_GIT_LOADED=1
 
 # require_clean_working_tree — refuse to operate on staged or unstaged
-# changes in push-only paths (e.g. Ollama-down fallback). The Russian message
-# will be translated to English in companion issue #5.
+# changes in push-only paths (e.g. Ollama-down fallback).
 require_clean_working_tree() {
     if [[ -n "$(git diff --cached)" || -n "$(git diff)" ]]; then
-        ui_error "Обнаружены незафиксированные изменения. Сначала закоммитьте текущие правки."
+        ui_error "Uncommitted changes detected. Commit or stash them first."
         return 1
     fi
     return 0
