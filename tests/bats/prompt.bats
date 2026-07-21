@@ -13,20 +13,40 @@ setup() {
 @@ -1 +1 @@
 -old
 +new"
-    run build_prompt "$diff" "english" 200
+    run build_prompt "$diff" "english" 500
     [ "$status" -eq 0 ]
     [[ "$output" == *"English"* ]]
     [[ "$output" == *"x.txt"* ]]
-    [[ "$output" == *"200 chars"* ]]
+    [[ "$output" == *"500 chars"* ]]
+    # Full diff must be passed to the LLM, not just headers.
+    [[ "$output" == *"-old"* ]]
+    [[ "$output" == *"+new"* ]]
 }
 
 @test "prompt: build_prompt russian uses russian instructions" {
     local diff="diff --git a/x.txt b/x.txt
 +new"
-    run build_prompt "$diff" "russian" 200
+    run build_prompt "$diff" "russian" 500
     [ "$status" -eq 0 ]
     [[ "$output" == *"русском"* ]]
-    [[ "$output" == *"200 символов"* ]]
+    [[ "$output" == *"500 символов"* ]]
+    [[ "$output" == *"diff --git"* ]]
+}
+
+@test "prompt: build_prompt sends the full diff, not just file headers" {
+    local diff="diff --git a/x.txt b/x.txt
+index 1111..2222 100644
+--- a/x.txt
++++ b/x.txt
+@@ -1,3 +1,4 @@
+ line one
++inserted in the middle
+ line two
+ line three"
+    run build_prompt "$diff" "english" 500
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"@@ -1,3 +1,4 @@"* ]]
+    [[ "$output" == *"inserted in the middle"* ]]
 }
 
 @test "prompt: PROMPT_TEMPLATE_EN overrides the english template" {
@@ -34,22 +54,24 @@ setup() {
 +new"
     PROMPT_TEMPLATE_EN='Custom %s chars EN: %s.' run build_prompt "$diff" "english" 42
     [ "$status" -eq 0 ]
-    [ "$output" = "Custom 42 chars EN: diff --git a/x.txt b/x.txt +new ." ]
+    # Full diff is passed verbatim (newline between header and hunk preserved).
+    [ "$output" = $'Custom 42 chars EN: diff --git a/x.txt b/x.txt\n+new.' ]
 }
 
 @test "prompt: build_fallback_prompt english" {
     local diff="diff --git a/x.txt b/x.txt
 +new content"
-    run build_fallback_prompt "$diff" "english" 100
+    run build_fallback_prompt "$diff" "english" 1000
     [ "$status" -eq 0 ]
-    [[ "$output" == *"under 100 chars"* ]]
+    [[ "$output" == *"under 1000 chars"* ]]
+    [[ "$output" == *"diff --git"* ]]
 }
 
 @test "prompt: build_fallback_prompt russian" {
     local diff="+new content"
-    run build_fallback_prompt "$diff" "russian" 100
+    run build_fallback_prompt "$diff" "russian" 1000
     [ "$status" -eq 0 ]
-    [[ "$output" == *"до 100 символов"* ]]
+    [[ "$output" == *"до 1000 символов"* ]]
 }
 
 @test "prompt: cleanup_message strips 'Here is a...:' prefix" {

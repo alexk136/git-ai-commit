@@ -28,11 +28,11 @@
 # Commit message language: english (default) | russian
 # LANG=english
 
-# Max commit message length (default: 200; longer messages are truncated)
-# MAX_COMMIT_MESSAGE_LENGTH=200
+# Max commit message length (default: 500; longer messages are truncated)
+# MAX_COMMIT_MESSAGE_LENGTH=500
 
-# Max length for the simpler fallback prompt used only by Ollama (default: 100)
-# MAX_SIMPLE_MESSAGE_LENGTH=100
+# Max length for the simpler fallback prompt used only by Ollama (default: 1000)
+# MAX_SIMPLE_MESSAGE_LENGTH=1000
 
 # HTTP timeout in seconds (default: 60)
 # CURL_TIMEOUT=60
@@ -53,9 +53,9 @@
 # OLLAMA_PROBE_CONNECT_TIMEOUT=1
 # OLLAMA_PROBE_TIMEOUT=2
 
-# LLM prompt templates. Two %s placeholders: max length, file summary.
-# PROMPT_TEMPLATE_EN='Generate only a commit message (max %s chars) in English for file changes: %s. Reply with only the message, no extra text.'
-# PROMPT_TEMPLATE_RU='Сгенерируй только сообщение коммита (максимум %s символов) на русском языке для изменений в файлах: %s. Ответь только сообщением без дополнительного текста.'
+# LLM prompt templates. Two %s placeholders: max length, full diff.
+# PROMPT_TEMPLATE_EN='Generate only a commit message (max %s chars) in English for the following diff: %s. Reply with only the message, no extra text.'
+# PROMPT_TEMPLATE_RU='Сгенерируй только сообщение коммита (максимум %s символов) на русском языке для следующего diff: %s. Ответь только сообщением без дополнительного текста.'
 # PROMPT_FALLBACK_TEMPLATE_EN='Only commit message (under %s chars): %s'
 # PROMPT_FALLBACK_TEMPLATE_RU='Только сообщение коммита (до %s символов): %s'
 

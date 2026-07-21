@@ -9,36 +9,26 @@ __GAIC_PROMPT_LOADED=1
 
 # build_prompt <diff_text> <language> <max_length>
 # Prints the prompt to stdout. Language is "russian" or anything else (english).
+# The full diff is passed to the LLM so it can actually see what changed.
 build_prompt() {
     local diff="$1" lang="$2" max_len="$3"
 
-    local files_changed
-    files_changed=$(printf '%s\n' "$diff" | grep -c '^diff --git' || true)
-    if [[ "$files_changed" -eq 0 ]]; then
-        files_changed=$(printf '%s\n' "$diff" | grep -c '^New file:' || true)
-    fi
-
-    local file_summary
-    file_summary=$(printf '%s\n' "$diff" \
-        | grep -E '^(diff --git|New file:|\+\+\+|---)' \
-        | head -10 | tr '\n' ' ')
-
     local tmpl
     if [[ "$lang" == "russian" ]]; then
-        tmpl="${PROMPT_TEMPLATE_RU:-Сгенерируй только сообщение коммита (максимум %s символов) на русском языке для изменений в файлах: %s. Ответь только сообщением без дополнительного текста.}"
+        tmpl="${PROMPT_TEMPLATE_RU:-Сгенерируй только сообщение коммита (максимум %s символов) на русском языке для следующего diff: %s. Ответь только сообщением без дополнительного текста.}"
     else
-        tmpl="${PROMPT_TEMPLATE_EN:-Generate only a commit message (max %s chars) in English for file changes: %s. Reply with only the message, no extra text.}"
+        tmpl="${PROMPT_TEMPLATE_EN:-Generate only a commit message (max %s chars) in English for the following diff: %s. Reply with only the message, no extra text.}"
     fi
     # shellcheck disable=SC2059  # tmpl is operator-provided; literal defaults are safe
-    printf "$tmpl" "$max_len" "$file_summary"
+    printf "$tmpl" "$max_len" "$diff"
 }
 
 # build_fallback_prompt <diff_text> <language> <max_length>
 # Simpler prompt used when the primary one returns an empty response.
+# Still passes the full diff so the model has a second chance to see the
+# changes; the model is asked for a shorter message than the primary prompt.
 build_fallback_prompt() {
     local diff="$1" lang="$2" max_len="$3"
-    local simple_diff
-    simple_diff=$(printf '%s\n' "$diff" | head -3 | tr -cd '[:alnum:][:space:]._-' | tr '\n' ' ')
 
     local tmpl
     if [[ "$lang" == "russian" ]]; then
@@ -47,7 +37,7 @@ build_fallback_prompt() {
         tmpl="${PROMPT_FALLBACK_TEMPLATE_EN:-Only commit message (under %s chars): %s}"
     fi
     # shellcheck disable=SC2059  # tmpl is operator-provided; literal defaults are safe
-    printf "$tmpl" "$max_len" "$simple_diff"
+    printf "$tmpl" "$max_len" "$diff"
 }
 
 # cleanup_message <raw_message>

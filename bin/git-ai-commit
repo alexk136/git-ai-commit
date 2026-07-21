@@ -41,8 +41,8 @@ DEFAULT_MODEL="mistral-nemo:latest"
 DEFAULT_BUMP="patch"
 DEFAULT_LANG="english"
 DEFAULT_ALWAYS_TAG=0
-DEFAULT_MAX_COMMIT_MESSAGE_LENGTH=200
-DEFAULT_MAX_SIMPLE_MESSAGE_LENGTH=100
+DEFAULT_MAX_COMMIT_MESSAGE_LENGTH=500
+DEFAULT_MAX_SIMPLE_MESSAGE_LENGTH=1000
 DEFAULT_CURL_TIMEOUT=60
 DEFAULT_CURL_CONN_TIMEOUT=5
 DEFAULT_CURL_RETRIES=2
@@ -89,7 +89,7 @@ ${C_BOLD}OPTIONS${C_RESET}
     --tag [TYPE]           Also bump and push the next semver tag after commit
                            (equivalent to ALWAYS_TAG=1 for this run; TYPE in
                            patch|minor|major, default: patch)
-    --max-length N         Max commit message length (default: 200)
+    --max-length N         Max commit message length (default: 500)
     --install              Install 'git-commit' symlink (auto-detects dir)
     --install-dir DIR      With --install, override target directory
     --uninstall            Remove 'git-commit' symlink (any location)

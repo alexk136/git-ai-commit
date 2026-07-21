@@ -36,6 +36,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `PROMPT_FALLBACK_TEMPLATE_EN`, `PROMPT_FALLBACK_TEMPLATE_RU`,
   `SEMVER_TAG_PATTERN`. `CURL_CONN_TIMEOUT` is now part of
   `CONFIG_KEYS` so it loads from per-repo config.
+- `lib/prompt.sh` now passes the **entire git diff** to the LLM instead
+  of just file headers. Previously the model only saw a 10-line
+  `file_summary` (paths + `+++`/`---`) and had to guess the message —
+  fine for one-line changes, useless for anything structural. The full
+  diff gives it enough context to write meaningful messages. Updated
+  default `PROMPT_TEMPLATE_EN` / `PROMPT_TEMPLATE_RU` wording to
+  match.
+- Default `MAX_COMMIT_MESSAGE_LENGTH` raised `200` → `500`,
+  `MAX_SIMPLE_MESSAGE_LENGTH` raised `100` → `1000`. Longer messages
+  produced by the LLM are still truncated to the cap before commit.
+- Dropped dead code (`files_changed` count in `build_prompt` was
+  computed but never used).
 
 ## [0.3.0] - 2025-XX-XX
 

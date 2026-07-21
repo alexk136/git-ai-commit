@@ -165,7 +165,7 @@ git-commit [OPTIONS]
 | `--bump TYPE` | Version bump: `patch` (default), `minor`, or `major` |
 | `--tag [TYPE]` | Also bump and push the next semver tag after commit (equivalent to `ALWAYS_TAG=1` for this run; TYPE in `patch`/`minor`/`major`, default: `patch`) |
 | `--lang LANG` | Commit message language: `english` (default) or `russian` |
-| `--max-length N` | Max commit message length (default: 200) |
+| `--max-length N` | Max commit message length (default: 500) |
 | `--dry-run` | Print the generated message without committing or pushing |
 | `--verbose` / `--quiet` | Adjust log level |
 | `--install` / `--uninstall` | Symlink / unlink `git-commit` (auto-detects directory) |
@@ -255,8 +255,8 @@ full sample.
 | `BUMP` | `patch` | `patch` \| `minor` \| `major` |
 | `LANG` | `english` | `english` \| `russian` |
 | `ALWAYS_TAG` | `0` | Always bump and push a tag after commit (`0`/`1`; `true`/`false` also accepted). CLI `--tag` still wins for one run. |
-| `MAX_COMMIT_MESSAGE_LENGTH` | `200` | Hard cap; longer messages are truncated |
-| `MAX_SIMPLE_MESSAGE_LENGTH` | `100` | Used by the Ollama fallback prompt |
+| `MAX_COMMIT_MESSAGE_LENGTH` | `500` | Hard cap; longer messages are truncated |
+| `MAX_SIMPLE_MESSAGE_LENGTH` | `1000` | Used by the Ollama fallback prompt |
 | `CURL_TIMEOUT` | `60` | Per-request timeout in seconds |
 | `CURL_CONN_TIMEOUT` | `5` | TCP connect timeout in seconds |
 | `CURL_RETRIES` | `2` | Retries on 5xx / transport errors |
@@ -264,7 +264,7 @@ full sample.
 | `CURL_RETRY_BACKOFF` | `2` | Multiplier applied to the retry delay after each attempt |
 | `OLLAMA_PROBE_CONNECT_TIMEOUT` | `1` | Ollama reachability probe — connect timeout (seconds) |
 | `OLLAMA_PROBE_TIMEOUT` | `2` | Ollama reachability probe — total timeout (seconds) |
-| `PROMPT_TEMPLATE_EN` | (English) | LLM prompt for `build_prompt`. Two `%s` placeholders: max length, file summary |
+| `PROMPT_TEMPLATE_EN` | (English) | LLM prompt for `build_prompt`. Two `%s` placeholders: max length, full diff |
 | `PROMPT_TEMPLATE_RU` | (Russian) | LLM prompt for `build_prompt` when `LANG=russian` |
 | `PROMPT_FALLBACK_TEMPLATE_EN` | (English) | LLM prompt for `build_fallback_prompt` |
 | `PROMPT_FALLBACK_TEMPLATE_RU` | (Russian) | Russian fallback prompt |
