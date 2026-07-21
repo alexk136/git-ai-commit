@@ -73,7 +73,17 @@ $ git-commit
 
 ## Installation
 
-### Option 1: Clone and symlink (recommended)
+### Dependencies
+
+| OS | Install |
+| --- | --- |
+| Debian / Ubuntu | `sudo apt install bash git curl jq` |
+| Fedora / RHEL | `sudo dnf install bash git curl jq` |
+| Alpine | `sudo apk add bash git curl jq` |
+| Arch | `sudo pacman -S bash git curl jq` |
+| macOS (Homebrew) | `brew install git curl jq` (bash 3.2+ is preinstalled) |
+
+### Install the script
 
 ```bash
 git clone https://github.com/alexk136/git-ai-commit.git
@@ -83,23 +93,26 @@ cd git-ai-commit
 
 `--install` picks the first writable location from this priority list:
 
-1. `--install-dir DIR` (or `CLI_INSTALL_DIR`) if given
-2. `$HOMEBREW_PREFIX/bin` (macOS Apple Silicon → `/opt/homebrew/bin`,
-   Intel → `/usr/local/bin`)
-3. `/usr/local/bin` (traditional Linux + Intel macOS)
-4. `~/.local/bin` (no root needed)
+| Platform | Target | Notes |
+| --- | --- | --- |
+| `--install-dir DIR` | `<DIR>/git-commit` | Explicit override. |
+| macOS Apple Silicon + Homebrew | `/opt/homebrew/bin/git-commit` | `$HOMEBREW_PREFIX/bin`. |
+| macOS Intel + Homebrew | `/usr/local/bin/git-commit` | Same `HOMEBREW_PREFIX/bin` on this host. |
+| Linux (writable `/usr/local/bin`) | `/usr/local/bin/git-commit` | Traditional default. |
+| No sudo / read-only `/usr/local/bin` | `~/.local/bin/git-commit` | Hint printed if not on `$PATH`. |
 
 If the chosen directory is not on your `$PATH`, the script prints an
 `export PATH=…` hint. To remove: `git-commit --uninstall` (searches all
 candidate locations).
 
-### Option 2: Manual symlink
+### Manual install
 
 ```bash
-sudo ln -sf "$(pwd)/bin/git-ai-commit" /usr/local/bin/git-commit
+make install                          # autodetect BINDIR (same chain as --install)
+make install BINDIR=/custom/path      # explicit
 ```
 
-### Option 3: Shell alias (no root needed)
+### Shell alias (no root needed)
 
 Add to `~/.bashrc` or `~/.zshrc`:
 
