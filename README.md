@@ -373,6 +373,10 @@ the alias to `~/.bashrc`.
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow, coding style, and
 how to run the test suite locally. Issues and PRs are welcome.
 
+## Author
+
+Alex K. — [elrise.io](https://elrise.io) · [alexk@elrise.io](mailto:alexk@elrise.io)
+
 ## License
 
 [MIT](LICENSE) © 2025 git-ai-commit contributors
