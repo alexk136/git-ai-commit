@@ -454,7 +454,6 @@ run_push_only() {
     fi
 
     ui_step "Found unpushed commits. Pushing..."
-    echo "$unpushed"
     git push
 
     if [[ "$TAG" == true ]] || is_truthy "$ALWAYS_TAG"; then
