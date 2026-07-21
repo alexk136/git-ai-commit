@@ -78,6 +78,16 @@ teardown() {
     [ "$status" -ne 0 ]
 }
 
+@test "cli: --tag with no changes still bumps & pushes the tag (dry-run)" {
+    # Discard the unstaged change the setup() leaves in the tree so there
+    # is nothing to commit and no unpushed commits.
+    git checkout -- a
+    run "$BIN" --tag patch --dry-run
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"v0.1.1"* ]]
+    [[ "$output" != *"No changes to commit"* ]]
+}
+
 @test "cli: ALWAYS_TAG=0 by default — --tag --dry-run without ALWAYS_TAG shows tag preview" {
     run env -u ALWAYS_TAG "$BIN" --tag patch --dry-run
     [ "$status" -eq 0 ]

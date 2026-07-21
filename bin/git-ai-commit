@@ -360,7 +360,21 @@ check_provider_ready() {
                 local unpushed
                 unpushed=$(unpushed_commits || true)
                 if [[ -z "$unpushed" ]]; then
-                    ui_info "Nothing to push."
+                    # No commits to push — but if --tag was requested, just bump
+                    # & push the next semver tag. This is a legitimate tag-only
+                    # release flow.
+                    if [[ "$TAG" == true ]] || is_truthy "$ALWAYS_TAG"; then
+                        prepare_next_numeric_tag "$BUMP" || exit 1
+                        if [[ "$DRY_RUN" == true ]]; then
+                            ui_arrow "Dry-run: would create tag: $new_tag"
+                            exit 0
+                        fi
+                        git tag "$new_tag"
+                        git push origin "$new_tag"
+                        ui_ok "New tag created (no commits to push): $new_tag"
+                    else
+                        ui_info "Nothing to push."
+                    fi
                     exit 0
                 fi
 
@@ -419,10 +433,26 @@ run_push_only() {
         exit 1
     fi
     unpushed=$(git log "origin/${branch}..HEAD" --oneline 2>/dev/null || true)
+
+    # If --tag (or ALWAYS_TAG) was passed, just bump & push the tag even
+    # when there are no commits to push — that is a legitimate "tag-only"
+    # release flow. Without --tag, nothing-to-do means exit clean.
     if [[ -z "$unpushed" ]]; then
+        if [[ "$TAG" == true ]] || is_truthy "$ALWAYS_TAG"; then
+            prepare_next_numeric_tag "$BUMP" || exit 1
+            if [[ "$DRY_RUN" == true ]]; then
+                ui_arrow "Dry-run: would create tag: $new_tag"
+                exit 0
+            fi
+            git tag "$new_tag"
+            git push origin "$new_tag"
+            ui_ok "Tag created (no commits to push): $new_tag"
+            exit 0
+        fi
         ui_info "No changes to commit"
         exit 0
     fi
+
     ui_step "Found unpushed commits. Pushing..."
     echo "$unpushed"
     git push

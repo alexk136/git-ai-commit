@@ -54,6 +54,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   longer shipped. `--lang russian` is now a no-op (still accepted so
   existing configs don't break, but the request is built from the
   unified English template).
+- `git-commit --tag` (or `ALWAYS_TAG=1`) with **no local changes and no
+  unpushed commits** now bumps & pushes the next semver tag instead of
+  exiting with "No changes to commit". This restores the legitimate
+  "tag-only release" flow. Without `--tag` the no-changes case still
+  exits cleanly with the existing info message. Same fix applied to
+  the Ollama-down fallback path. New bats test
+  `'cli: --tag with no changes still bumps & pushes the tag'` locks
+  the behaviour in.
 
 ## [0.3.0] - 2025-XX-XX
 
