@@ -1,6 +1,7 @@
 # git-ai-commit
 
-> Generate a commit message with an LLM, commit, push, and bump the semver tag — in one command.
+> Generate a commit message with an LLM, commit, and push — optionally bumping
+> the semver tag — in one command.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Shellcheck](https://img.shields.io/badge/shellcheck-passing-brightgreen)](bin/git-ai-commit)
@@ -11,7 +12,8 @@
 releasing code into a single command. It picks the right LLM provider
 automatically, asks it to summarize your staged changes, commits with a
 [Conventional Commits](https://www.conventionalcommits.org/)-style message,
-pushes the branch, and bumps the next `vX.Y.Z` tag.
+and pushes the branch. Tagging is opt-in: pass `--tag` for one run, or set
+`ALWAYS_TAG=1` to make every commit bump the next `vX.Y.Z` tag.
 
 Once installed it adds a `git-commit` command on your `$PATH` (symlink to
 `bin/git-ai-commit`). From then on you just run `git-commit`.
@@ -23,15 +25,14 @@ $ git-commit
 ℹ Auto-selected provider: openai (from OPENAI_API_KEY)
 ▶ Sending request to openai model gpt-4o-mini...
 >>> Generated message: fix: handle nil pointer in cache loader
-✅ New tag created: v0.1.2
-✅ Commit and tag successfully created and pushed.
+✅ Commit pushed (no tag — pass --tag or set ALWAYS_TAG=1 to tag).
 ```
 
 ---
 
 ## Features
 
-- **One command, full release** — stage, commit, push, tag.
+- **One command, full release** — stage, commit, push, optionally tag.
 - **5 LLM providers** — Ollama (local), OpenAI, OpenRouter, Anthropic, MiniMax.
 - **Auto-detection** — picks the provider from whichever API key env var is set.
 - **Per-repo and global config** — drop a `.gitaicommit` in the repo root or
@@ -40,8 +41,8 @@ $ git-commit
   universal `GAIC_MODEL`.
 - **Robust parsing** — handles `<think>` reasoning blocks, common
   AI prefixes, mixed Cyrillic / Latin output, quotes, and stray whitespace.
-- **Smart tag-only mode** — when there's nothing to commit, just bump and
-  push the next tag.
+- **Opt-in tagging** — `--tag` for a single run, `ALWAYS_TAG=1` (env /
+  per-repo config) to make every commit bump and push the next semver tag.
 - **No required dependencies** beyond `bash`, `git`, `curl`, and optionally
   `jq` (used for non-ollama providers).
 - **Single static binary-style entry point** — `bin/git-ai-commit` can be
@@ -122,9 +123,11 @@ git-commit
 ```
 
 The provider is auto-selected from whichever key is set (priority:
-openrouter → openai → anthropic → minimax → ollama). The first time you
-run it for a repo with no prior tag, it creates `v0.1.0`. Every subsequent
-run bumps the patch version by default.
+openrouter → openai → anthropic → minimax → ollama). By default the tool
+commits and pushes without creating a tag. Add `--tag` for a single release
+or set `ALWAYS_TAG=1` (env or `.gitaicommit`) to tag every commit. The
+first tag for a repo with no prior tag is `v0.1.0`; subsequent tags bump
+patch by default.
 
 ## Usage
 
@@ -141,7 +144,7 @@ git-commit [OPTIONS]
 | `--api-key KEY` | API key (else read from `<PROVIDER>_API_KEY` env var) |
 | `--base-url URL` | Override the provider's base URL (proxies, self-hosted gateways, etc.) |
 | `--bump TYPE` | Version bump: `patch` (default), `minor`, or `major` |
-| `--tag [TYPE]` | Tag-only mode: don't commit, just bump and push the next tag |
+| `--tag [TYPE]` | Also bump and push the next semver tag after commit (equivalent to `ALWAYS_TAG=1` for this run; TYPE in `patch`/`minor`/`major`, default: `patch`) |
 | `--lang LANG` | Commit message language: `english` (default) or `russian` |
 | `--max-length N` | Max commit message length (default: 200) |
 | `--dry-run` | Print the generated message without committing or pushing |
@@ -167,11 +170,23 @@ git-commit --provider openrouter --model x-ai/grok-4
 # MiniMax
 git-commit --provider minimax --model MiniMax-M3
 
-# Just bump the tag without committing
+# Commit and bump the tag in one go
+git-commit --tag
+
+# Commit and bump the minor version tag
 git-commit --tag minor
+
+# Always commit + tag (no flag needed)
+ALWAYS_TAG=1 git-commit
+
+# Or pin it per-repo via .gitaicommit
+echo 'ALWAYS_TAG=1' > .gitaicommit
 
 # Preview only
 git-commit --dry-run
+
+# Preview the tag bump without making a commit
+git-commit --tag --dry-run
 
 # Russian commit messages
 git-commit --lang russian
@@ -219,6 +234,7 @@ full sample.
 | `API_KEY` | — | Fallback if no env var is set |
 | `BUMP` | `patch` | `patch` \| `minor` \| `major` |
 | `LANG` | `english` | `english` \| `russian` |
+| `ALWAYS_TAG` | `0` | Always bump and push a tag after commit (`0`/`1`; `true`/`false` also accepted). CLI `--tag` still wins for one run. |
 | `MAX_COMMIT_MESSAGE_LENGTH` | `200` | Hard cap; longer messages are truncated |
 | `MAX_SIMPLE_MESSAGE_LENGTH` | `100` | Used by the Ollama fallback prompt |
 | `CURL_TIMEOUT` | `60` | Per-request timeout in seconds |
@@ -231,6 +247,7 @@ full sample.
 | `<PROVIDER>_API_KEY` | API key (e.g. `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`) |
 | `<PROVIDER>_MODEL` | Per-provider model override |
 | `GAIC_MODEL` | Universal model override (beats `<PROVIDER>_MODEL`) |
+| `ALWAYS_TAG` | `0`/`1` — always bump and push a semver tag after commit |
 | `NO_COLOR` | Disable ANSI colors |
 | `GAIC_LOG_LEVEL` | `debug` \| `info` \| `warn` \| `error` (default: `info`) |
 
@@ -257,13 +274,14 @@ Adding a new provider is a 5-line change in
 2. Auto-detect the provider from env keys if `--provider` isn't given.
 3. Check the provider is reachable and (for Ollama) the model is loaded.
 4. Build a prompt from `git diff --cached` (falls back to `git diff`, then
-   to unpushed commits for tag-only mode).
+   to unpushed commits when there's nothing to commit).
 5. Call the LLM with a strict instruction to return only the message.
 6. Strip common AI prefixes (`` tags, "Here is a
    commit message:", Cyrillic variants) and surrounding quotes.
 7. Truncate to `MAX_COMMIT_MESSAGE_LENGTH` (default 200).
 8. `git add -A && git commit && git push`.
-9. Bump the latest `vX.Y.Z` tag and push it.
+9. If `--tag` was passed or `ALWAYS_TAG=1` is set, bump the latest `vX.Y.Z`
+   tag and push it; otherwise skip tagging with an info message.
 
 For Ollama only, there's a fallback prompt with a smaller diff window if
 the first response is empty.
@@ -287,9 +305,10 @@ stripping, try a smaller `max_tokens` setting or switch to a
 non-reasoning model. For MiniMax-M2.7 specifically, the default
 `max_tokens=2000` is enough to fit both thinking and answer.
 
-**Tag-only mode prints `git push` even when there's nothing new.**
-That's intentional: it pushes any unpushed commits and bumps the tag.
-Use `--dry-run` to preview.
+**Tagging didn't happen even though I expected it.**
+Tagging is opt-in now. Either pass `--tag` on the command line, or set
+`ALWAYS_TAG=1` in `.env` / `.gitaicommit` to tag every commit. `--dry-run`
+also previews the tag if `--tag` is set, no LLM required.
 
 **`command not found: git-commit` after `--install`**
 You need write access to `/usr/local/bin`. Re-run with `sudo` or add

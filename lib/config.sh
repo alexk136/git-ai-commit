@@ -20,7 +20,7 @@ __GAIC_CONFIG_LOADED=1
 # Recognized keys (whitelist). Add new ones here when extending.
 CONFIG_KEYS=(
     PROVIDER MODEL BASE_URL API_KEY
-    BUMP LANG
+    BUMP LANG ALWAYS_TAG
     MAX_COMMIT_MESSAGE_LENGTH MAX_SIMPLE_MESSAGE_LENGTH
     CURL_TIMEOUT CURL_RETRIES
 )
@@ -144,6 +144,13 @@ config_validate() {
             if [[ ! "$value" =~ ^[0-9]+$ ]] || [[ "$value" -le 0 ]]; then
                 ui_error "Invalid $key '$value' (must be a positive integer)"; return 1
             fi
+            ;;
+        ALWAYS_TAG)
+            case "${value,,}" in
+                1|true|yes|on)  return 0 ;;
+                0|false|no|off|"") return 0 ;;
+                *) ui_error "Invalid ALWAYS_TAG '$value' (allowed: 0|1|true|false)"; return 1 ;;
+            esac
             ;;
     esac
     [[ -n "$value" ]] && return 0
